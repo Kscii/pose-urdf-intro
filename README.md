@@ -19,9 +19,10 @@ npm run build
 
 ## 导出 PDF
 
-Slidev 导出依赖本机可用的 Chromium：
+Slidev 导出依赖项目中的 `playwright-chromium` 和本机可用的 Chromium。首次使用时执行：
 
 ```bash
+npm install
 npx playwright install chromium
 npm run export
 ```
@@ -32,7 +33,7 @@ npm run export
 - `style.css`：全局视觉样式。
 - `CONTENT.md`：逐页内容底稿与讲解说明。
 - `assets/source/`：A2D URDF 与已有 Foxglove 截图。
-- 待补动画或截图在 `slides.md` 中以虚线框标记，替换对应占位即可。
+- 待补动画或截图统一记录在 Markdown 注释或 `CONTENT.md` 中，不在正式演示页显示占位框。
 
 ## GitHub Pages
 
