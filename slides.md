@@ -3,341 +3,400 @@ theme: default
 title: 从 Joint 到 End Pose
 titleTemplate: '%s · 位姿与 URDF 入门'
 author: kscii
+class: cover-slide
 info: |
-  面向数采训练场平台开发团队的 30 分钟入门分享。
-  正文与演示收束 27 页，附录 6 页。
+  面向数采训练场平台开发团队的 30 分钟技术科普。
+  文档型版本：正文与演示 20 页，附录 3 页，共 23 页。
 colorSchema: dark
 transition: fade-out
 exportFilename: pose-urdf-intro
 mdc: true
 ---
 
-<div class="eyebrow">Pose · Frame · URDF · FK</div>
+<div class="eyebrow">POSE · FRAME · URDF · TF · FK</div>
 
 # 从 Joint 到 End Pose
 
-<div class="subtitle">
-数采平台中的坐标系、URDF 与位姿解算
-</div>
+<div class="subtitle">数采平台中的坐标系、URDF 与位姿解算</div>
 
-<div class="muted" style="margin-top:34px;width:52%;font-size:19px">
+<div class="cover-question">
 一个末端位姿究竟表示哪个点、相对谁、从哪里来？
 </div>
 
+<div class="doc-meta">受众：会写代码，但基本不了解 ROS / URDF / TF　·　目标时长：30 分钟　·　案例：A2D + Foxglove</div>
+
 <!--
-30 秒。直接从问题进入主题；不要求听众具有 ROS 或机器人学基础。
-整篇使用 A2D 解释 URDF、TF 和 FK。
+30 秒。直接从问题进入；这是入门科普，也提供后续参与 FK 开发所需的最低基础。
+A2D 用于解释 URDF、TF 和 FK；拥有 raw end 的 DWHEEL 用于 Raw/Verify 对比。
 -->
 
 ---
 
-<div class="eyebrow">01 · Why</div>
+<div class="eyebrow">00 · 阅读范围</div>
 
-# 为什么平台需要末端位姿？
+# 学习目标、内容边界与 30 分钟安排
 
-<div class="two-col wide-left">
+<div class="three-col micro">
 <div>
 
-<div class="lead">末端位姿描述一个操作点：<strong>在哪里、朝向哪里、相对谁</strong>。</div>
+## 结束后应能回答
 
-- 表达动作目标和实际状态
-- 为训练数据提供统一的操作语义
-- 校验厂商数据、URDF 与 joint mapping
-- 在 Foxglove 中重建、回放和排查动作
-
-</div>
-<div class="media-placeholder">
-  <div><strong>待补：A2D 左手局部</strong>手腕 reference frame、夹爪中心与 TCP<br><span class="tiny">assets/final/endpoints-reference-tcp.png</span></div>
-</div>
-</div>
-
-<!--
-1 分钟。末端不一定是最后一个看得见的零件，也可以是夹爪中心、工具尖端或相机光心。
-平台关心的是带明确语义、参考坐标系和时间的 pose。
--->
-
----
-
-<div class="eyebrow">02 · Pose semantics</div>
-
-# 一条 Pose，至少要回答五个问题
-
-<div class="semantic-line">
-  <div><span class="label">Endpoint</span><span class="value">描述哪个点？</span></div>
-  <div><span class="label">Reference frame</span><span class="value">相对谁？</span></div>
-  <div><span class="label">Timestamp</span><span class="value">哪个时刻？</span></div>
-</div>
-
-<div class="two-col" style="margin-top:34px">
-<div>
-
-## Position
-
-末端在哪里：`[x, y, z]`
+1. Pose 为什么必须说明 frame？
+2. position / orientation 是什么？
+3. RPY、matrix、quaternion 的区别？
+4. Action End / State End 的区别？
+5. Raw、Verify、Reference、TCP 是什么？
+6. world、base_link、vendor frame 如何选择？
+7. link、joint、origin、axis、mesh 是什么？
+8. URDF joint、运行时 joint、TF 的区别？
+9. FK 如何沿链计算 end pose？
+10. FK 开发应检查哪些工程问题？
+11. 如何用 Foxglove 基本校验？
 
 </div>
 <div>
 
-## Orientation
+## 正文覆盖
 
-末端朝向哪里：`RPY / R / q`
+- Pose / frame / timestamp / XYZ 颜色
+- 三类坐标系与三种姿态表示
+- 三组 End 语义
+- URDF tree、link、joint、mesh/STL
+- Joint 定义、运行时 q 与 TF
+- 齐次变换、单 joint、链式 FK
+- 单帧 / 批量 FK 与公司流程
+- Raw/Verify、校验和错误清单
 
-</div>
-</div>
+## 不展开
 
-> 数值格式正确，不代表语义能够直接比较。
-
-<!--
-1 分 20 秒。单独给出 xyz 没有完整意义。Raw 与 Verify 比较前，也必须保证 endpoint、frame、timestamp 一致。
--->
-
----
-
-<div class="eyebrow">03 · Coordinate frame</div>
-
-# 看到坐标轴，先记住颜色约定
-
-<div class="axis-row">
-  <div class="axis-item x-axis">X · 红色</div>
-  <div class="axis-item y-axis">Y · 绿色</div>
-  <div class="axis-item z-axis">Z · 蓝色</div>
-</div>
-
-<div class="two-col">
-<img class="image-frame" style="max-height:280px" src="./assets/source/a2d-foxglove-side-frames.png" alt="A2D 侧视坐标轴">
-<img class="image-frame" style="max-height:280px" src="./assets/source/a2d-foxglove-top-frames.png" alt="A2D 俯视坐标轴">
-</div>
-
-<div class="small muted" style="margin-top:12px">这是 Foxglove、RViz 等工具的常见约定，不是数学强制要求；坐标轴会随对应 link 一起运动。</div>
-
-<!--
-1 分 10 秒。不同 frame 的轴方向可以完全不同，不能把屏幕方向当成坐标轴方向。
-不要简单说“红色就是 roll”；roll/pitch/yaw 与轴的关系依赖所采用的旋转约定。
--->
-
----
-
-<div class="eyebrow">04 · Reference frame</div>
-
-# 公司数据中常见的三类坐标系
-
-| 坐标系 | 表达什么 | 优势 | 使用时注意 |
-|---|---|---|---|
-| `world` | 场地或全局参考 | 跨机器人、跨时刻比较方便 | 依赖定位或外部标定 |
-| `base_link` | 机器人本体基准 | 与 URDF、FK 天然衔接，稳定易复现 | 机器人移动时不代表世界固定位置 |
-| 厂商自定义 frame | 厂商控制器或传感器参考 | 可直接使用原始话题 | 必须确认定义、方向和到 `base_link` 的变换 |
-
-<div class="quote-big" style="margin-top:30px;font-size:28px">
-平台内部优先把语义归一到 <code>base_link</code>；跨机器人或场景任务再使用 <code>world</code>。
-</div>
-
-<!--
-1 分 20 秒。这里原先的 baseline 是笔误，统一为 base_link。
-强调没有绝对“最好”的 frame，选择取决于是否要跨机器人、跨时刻和跨场景比较。
--->
-
----
-
-<div class="eyebrow">05 · Orientation</div>
-
-# 姿态的三种表达方式
-
-| 表达 | 长度 | 适合 | 主要风险 |
-|---|---:|---|---|
-| RPY / Euler | 3 | 人读、配置、调试 | 旋转顺序歧义、万向节锁 |
-| Rotation matrix | 9 | 计算与连续变换 | 冗余，需保持正交 |
-| Quaternion | 4 | 存储、传输、插值 | 不直观；顺序可能是 `xyzw` 或 `wxyz` |
-
-<div class="semantic-line">
-  <div><span class="label">可读</span><span class="value">RPY</span></div>
-  <div><span class="label">计算</span><span class="value">Matrix</span></div>
-  <div><span class="label">传输</span><span class="value">Quaternion</span></div>
-</div>
-
-<div class="small muted">同一个姿态可以在三种表示之间转换；比较数据前先确认 RPY 顺序、角度单位和 quaternion 分量顺序。</div>
-
-<!--
-1 分 20 秒。少讲公式，只说明工程取舍。四元数 q 和 -q 表示同一个旋转。
--->
-
----
-
-<div class="eyebrow">06 · Endpoint</div>
-
-# “末端”不止一种：先拆开三组语义
-
-<div class="semantic-line">
-  <div><span class="label">目标还是实际</span><span class="value">Action / State</span></div>
-  <div><span class="label">厂商还是自算</span><span class="value">Raw / FK</span></div>
-  <div><span class="label">结构点还是工具点</span><span class="value">Reference / TCP</span></div>
-</div>
-
-<div class="flow">
-  <div><strong>Joint 数据</strong><br><span class="small muted">Action 或 State</span></div>
-  <div><strong>FK</strong><br><span class="small muted">沿运动链累积</span></div>
-  <div><strong>Reference End</strong><br><span class="small muted">URDF 中的语义 frame</span></div>
-  <div><strong>TCP End</strong><br><span class="small muted">叠加工具 offset</span></div>
-</div>
-
-<!--
-1 分钟。这三组维度互相独立，例如可以有 verify action TCP end，也可以有 vendor raw state end。
-不要用一个含糊的 end 字段承载全部语义。
--->
-
----
-
-<div class="eyebrow">07 · Action vs State</div>
-
-# Action End 与 State End：指令 ≠ 真实状态
-
-<div class="two-col">
-<div>
-
-## Action End
-
-- 输入：发出的 joint 指令
-- 含义：系统希望机器人到达的位置与姿态
-- 常用于动作目标、策略输出和指令检查
+IK、Jacobian、动力学、规划；完整姿态转换推导；Rodrigues / quaternion 乘法；inertia 计算；TCP 标定；ROS TF API；STL 内部格式；完整 H5 schema；GPU FK 与复杂优化。
 
 </div>
 <div>
 
-## State End
+## 时间安排
 
-- 输入：传感器返回的真实 joint 状态
-- 含义：机器人实际到达的位置与姿态
-- 常用于训练标签、回放和执行误差分析
+| 章节 | 分钟 |
+|---|---:|
+| 为什么需要 End Pose | 2 |
+| Pose / 坐标系 / 姿态 | 5 |
+| End 类型与来源 | 4 |
+| URDF 与结构 | 6 |
+| FK 算法 | 7 |
+| TF / 流程 / 校验 | 4 |
+| Foxglove / 总结 | 2 |
+| **合计** | **30** |
+
+HTML 是正式演示版本；PDF 用作离线备用和存档。不单独预留 Q&A。
 
 </div>
 </div>
-
-> 两者使用同一套 FK；差别首先来自输入数据，而不是算法。
-
-<div class="media-placeholder compact">
-  <div><strong>动画占位</strong>同一时间轴叠加 Action End 与 State End 轨迹</div>
-</div>
-
-<!--
-1 分 20 秒。Action 就是发出的指令，State 就是传感器返回的真实信息，没有其他含义。
-动态偏差可能来自控制滞后、机械误差、负载或时间对齐。
--->
 
 ---
 
-<div class="eyebrow">08 · Raw vs Verify</div>
+<div class="eyebrow">01 · Pose semantics</div>
 
-# Raw End 与 Verify End：数据来源不同
+# 为什么需要末端位姿，以及一条 Pose 必须说明什么
 
-<div class="two-col wide-right">
+<div class="doc-grid wide-right">
 <div>
 
-## Raw End
+末端位姿描述机器人上的某个操作点：
 
-厂商 ROS 话题或控制器直接提供的末端位姿。
+- **position**：在哪里，通常为 `[x, y, z]`
+- **orientation**：朝向哪里，可用 RPY / matrix / quaternion
+- **reference frame**：相对谁表达
 
-## Verify / FK End
+平台用途：表达目标与实际状态；为训练数据提供统一操作语义；校验厂商数据、URDF 与 joint mapping；在 Foxglove 中重建与排查动作。
 
-平台使用 joint 数据 + URDF 自行计算的末端位姿。
-
-## 为什么两者都留？
-
-互相校验 frame、joint mapping、URDF 和时间对齐。
-
-</div>
-<div class="media-placeholder">
-  <div><strong>待补：DWHEEL 对比截图</strong>同一 frame、endpoint、timestamp 下叠加 Raw 与 Verify<br><span class="tiny">assets/final/raw-verify-overlay.png</span></div>
-</div>
-</div>
-
-<div class="small muted">不一致不等于 FK 一定错误；先检查两条数据是否真的在描述同一件事。</div>
-
-<!--
-1 分钟。厂商没有 raw end 时，平台仍可通过 FK 得到 verify end。
--->
-
----
-
-<div class="eyebrow">09 · URDF</div>
-
-# URDF：机器人的“结构说明书”
-
-<div class="two-col wide-left">
-<div>
-
-URDF 是 XML，主要描述：
-
-- 有哪些刚体部件：`link`
-- 部件如何连接和运动：`joint`
-- 固定安装位姿：`origin xyz / rpy`
-- 运动轴、类型和限制：`axis / type / limit`
-- 显示、碰撞和惯性：`visual / collision / inertial`
-
-> URDF 定义结构，不保存每一帧的实时关节角。
+> 末端可以是手腕、夹爪中心、工具尖端、相机光心、足底接触点或人工定义 frame，不一定是最后一个可见零件。
 
 </div>
 <div>
-<img class="image-frame tall" src="./assets/source/a2d-foxglove-side-frames.png" alt="A2D 机器人">
-<div class="small muted" style="margin-top:8px">本分享使用 <code>A2D.urdf</code> 贯穿结构、TF 和 FK。</div>
+
+| 完整信息 | 回答的问题 | 常见错误 |
+|---|---|---|
+| endpoint | 描述哪个点？ | 两条数据实际不是同一点 |
+| reference frame | 相对谁？ | 数值看似接近但不能比较 |
+| timestamp | 哪个时刻？ | Action / State 动态错位 |
+| position | 在哪里？ | mm / m 混用 |
+| orientation | 朝向哪里？ | 顺序、单位、约定不一致 |
+
+```text
+可用 Pose = Position + Orientation
+          + Endpoint + Reference Frame + Timestamp
+```
+
+<div class="placeholder-line">待补：A2D 左手 reference / gripper center / TCP；pose 五项语义图</div>
+
 </div>
 </div>
 
 <!--
-1 分钟。URDF 是 Unified Robot Description Format。本页只讲它回答“机器人由什么组成、怎样连接”。
+约 2 分钟。单独给出 xyz 没有完整意义；Raw/Verify 校验的前提同样是 endpoint、frame、timestamp 一致。
 -->
 
 ---
 
-<div class="eyebrow">10 · Link and joint</div>
+<div class="eyebrow">02 · Coordinate frame</div>
 
-# Link、Joint 与一条运动链
+# XYZ 坐标轴与 Frame：不要把屏幕方向当成轴方向
 
-<div class="chain">
-  <span class="node">Link5_l</span><span class="joint">→</span>
-  <span class="node">left_arm_joint6</span><span class="joint">→</span>
-  <span class="node">Link6_l</span><span class="joint">→</span>
-  <span class="node">left_arm_joint7</span><span class="joint">→</span>
-  <span class="node">Link7_l</span><span class="joint">→</span>
-  <span class="node">left_base_link</span><span class="joint">→</span>
-  <span class="node">gripper_center</span>
-</div>
-
-<div class="two-col">
+<div class="doc-grid wide-left">
 <div>
 
-## Link
-
-刚体部件，以及固定在该刚体上的坐标系。
-
-</div>
-<div>
-
-## Joint
-
-连接 parent link 与 child link，并规定允许的运动。
-
-</div>
+<div class="axis-inline">
+  <span class="x-axis">X · 红色</span>
+  <span class="y-axis">Y · 绿色</span>
+  <span class="z-axis">Z · 蓝色</span>
 </div>
 
-- 从 base 到 end 的有序路径叫 **kinematic chain**
-- 完整 URDF 通常是一棵树，而 FK 只需取其中一条链
+- 这是 Foxglove、RViz 等工具的常见颜色约定，不是数学强制要求。
+- 每个 link 或自定义 frame 都可以拥有自己的 XYZ 轴；不同 frame 的轴方向可以完全不同。
+- 坐标轴随对应 link 运动；不能根据屏幕的上、下、左、右判断轴方向。
+- 不应简单说“红色就是 roll”。在指定约定下，roll / pitch / yaw 分别与绕 X / Y / Z 的旋转相关。
 
-<!--
-1 分 20 秒。中间 link 可以没有实体长度或 mesh。End 一般对应 link/custom frame，而不是 joint。
--->
+<div class="placeholder-line">待补：只显示 base_link、Link6_l、reference end、TCP 的简化截图</div>
+
+</div>
+<div class="doc-grid images-2">
+<img class="doc-image" src="./assets/source/a2d-foxglove-side-frames.png" alt="A2D 侧视坐标轴">
+<img class="doc-image" src="./assets/source/a2d-foxglove-top-frames.png" alt="A2D 俯视坐标轴">
+</div>
+</div>
 
 ---
 
-<div class="eyebrow">11 · A real joint</div>
+<div class="eyebrow">03 · Reference frame</div>
 
-# 一个真实 URDF Joint 定义了什么？
+# world、base_link 与厂商坐标系
 
-<div class="two-col wide-left">
+| 坐标系 | 含义 | 优势 | 局限 | 适合场景 |
+|---|---|---|---|---|
+| `world` | 固定在场地或场景 | 全局轨迹、多机器人关系 | 依赖定位、标定或场地定义 | 移动轨迹、跨设备关系 |
+| `base_link` | 固定在机器人本体，随整机移动 | 机器人内部运动语义稳定，与 URDF/FK 衔接 | 不能直接表达场地全局位置 | 机械臂 FK、统一 End、内部校验 |
+| vendor frame | 厂商控制器或传感器自定义 | 与原始 topic / 系统直接对应 | 构型间不统一，定义可能不明确 | 原始接入、问题追踪 |
+
+<div class="doc-grid" style="margin-top:18px">
+<div>
+
+厂商 Pose 归一化到 `base_link`：
+
+$$T_{base\rightarrow end}=T_{base\rightarrow vendor}T_{vendor\rightarrow end}$$
+
+</div>
+<div class="small">
+
+- `base_link` 不一定在几何中心，而是模型选定的本体参考 frame。
+- vendor frame 不是错误，但不能在未说明时与 base_link pose 混用。
+- 归一化不改变物理位置，只改变表达方式；必须先确认变换方向。
+
+</div>
+</div>
+
+<div class="placeholder-line">动画占位：同一末端分别在 world / base_link / vendor frame 下显示（8–12 秒）</div>
+
+---
+
+<div class="eyebrow">04 · Orientation</div>
+
+# 同一个姿态的三种表达
+
+| 表达 | 数据形式 | 优点 | 局限 / 风险 | 常见用途 |
+|---|---|---|---|---|
+| RPY / Euler | `[roll, pitch, yaw]` | 三个数，人工理解直观 | 依赖旋转顺序；存在 gimbal lock | URDF origin、配置、调试显示 |
+| Rotation Matrix | 3×3 | 直接参与变换和矩阵组合 | 九个数、有冗余；需保持正交 | FK 与坐标变换内部计算 |
+| Quaternion | `[x, y, z, w]` | 四个数、无 gimbal lock，适合组合与插值 | 不直观；必须确认 `xyzw/wxyz` | ROS、H5、程序输出 |
+
+<div class="doc-grid wide-left" style="margin-top:18px">
+<div>
+
+必须记住：三种表示描述的是同一个物理姿态；quaternion 通常应保持单位长度；`q` 和 `-q` 表示同一旋转。FK 常把 RPY / quaternion 转为 matrix 计算，再转换为输出 quaternion。
+
+正文不展开完整转换公式，只建立用途与风险意识。
+
+</div>
+<div>
+<img class="doc-image short" src="./assets/source/a2d-tf-message-arm.png" alt="TFMessage 中的 quaternion 与 RPY">
+<div class="placeholder-line">待补：同一 Link6_l 姿态的三种表示图</div>
+</div>
+</div>
+
+---
+
+<div class="eyebrow">05 · End semantics</div>
+
+# “End”有三组独立语义，不是一组互斥枚举
+
+<div class="three-col">
+<div>
+
+## 目标还是实际
+
+| 类型 | 含义 |
+|---|---|
+| Action | 发给机器人的控制指令 |
+| State | 传感器返回的实际状态 |
+| Action End | 指令对应的目标末端位姿 |
+| State End | 实际关节状态对应的末端位姿 |
+
+```text
+action joints + FK → action end
+state joints  + FK → state end
+```
+
+</div>
+<div>
+
+## 厂商还是平台计算
+
+| 类型 | 含义 |
+|---|---|
+| Raw End | 厂商 topic / 控制器直接提供 |
+| Verify/FK End | joint + URDF 由平台计算 |
+
+Raw 接入简单但语义和质量可能不统一；Verify 过程可控但依赖正确 URDF、mapping、单位和时间。二者都不会“自动正确”。
+
+</div>
+<div>
+
+## 描述哪个点
+
+- wrist reference frame
+- gripper center
+- TCP
+- camera optical frame
+- foot contact / custom endpoint
+
+End 通常对应 link/custom frame，而不是 joint；URDF 最后一个可见 mesh 不等于业务末端。
+
+</div>
+</div>
+
+<div class="doc-note">可以组合出 verify action TCP end 等具体数据；比较任何两条 End Pose 前，先确认 endpoint、frame、timestamp 和 quaternion convention。</div>
+
+---
+
+<div class="eyebrow">06 · Action / State / Raw / Verify</div>
+
+# Action 与 State 的差异，以及 Raw 与 Verify 的使用边界
+
+<div class="doc-grid">
+<div>
+
+## Action End vs State End
+
+Action 表示“被要求到哪里”，State 表示“实际到哪里”。两者使用同一 FK，差别首先来自输入 joint 数据。正常差异可能来自：控制延迟、速度限制、负载、跟踪误差、传感器噪声和时间未对齐。
+
+<div class="placeholder-box compact"><strong>动画占位</strong><br>Action 用黄/橙，State 用青；内部 XYZ 仍为红绿蓝。展示 Action 先移动、State 随后跟随，8–12 秒循环。</div>
+
+</div>
+<div>
+
+## Raw End vs Verify/FK End
+
+Raw 接近厂商内部定义；Verify 便于平台统一和诊断。不要把 raw action、verify action、raw state、verify state 当成四个不同物理末端。
+
+- A2D 没有 raw end：用于解释 URDF 与 FK。
+- DWHEEL 有 raw end：用于 Raw / Verify 对比。
+- 固定偏差不必然表示 FK 错误，可能是 endpoint 或 frame 不同。
+
+<div class="placeholder-box compact"><strong>动画占位</strong><br>DWHEEL Raw 用橙、Verify 用青；展示正确重合与固定偏差，8–12 秒。</div>
+
+</div>
+</div>
+
+---
+
+<div class="eyebrow">07 · Reference end / TCP</div>
+
+# Reference End 与 TCP：结构语义和操作语义
+
+<div class="doc-grid wide-left">
+<div>
+
+- **Reference End**：选定的 URDF link / custom frame，是 FK 运动链的结构或语义终点。
+- **TCP**：Tool Center Point，真正执行抓取、焊接、测量等操作的工具点。
+- TCP 可以由 URDF fixed joint 或人工标定给出固定 offset；具体标定方法不在本次范围。
+
+$$T_{base\rightarrow tcp}=T_{base\rightarrow reference}T_{reference\rightarrow tcp}$$
+
+名字叫 `gripper_center` 不代表它自动等于最终业务 TCP，仍须确认语义和标定。
+
+</div>
+<div>
+
+```xml
+<link name="gripper_center"/>
+<joint name="gripper_center_joint" type="fixed">
+  <origin xyz="0 0 0.23"
+          rpy="0 0 -1.57079632679"/>
+  <parent link="left_base_link"/>
+  <child link="gripper_center"/>
+</joint>
+```
+
+`gripper_center` 没有 visual / collision / mesh，但仍是合法 link/frame。
+
+</div>
+</div>
+
+<div class="placeholder-line">待补：Reference / gripper center / TCP 三点图；隐藏 mesh 后显示 meshless frame</div>
+
+---
+
+<div class="eyebrow">08 · URDF</div>
+
+# URDF 是结构说明书：Link、Joint、Tree 与运动链
+
+<div class="doc-grid wide-left">
+<div>
+
+URDF（Unified Robot Description Format）用 XML 描述机器人：link；joint 的 parent/child、origin、axis、type、limit；link 的 visual、collision、inertial；mesh 文件位置。
+
+URDF **不保存**每帧 joint state，不是控制程序，也不是完整 CAD 工程。它给静态模型，运行时数据给当前关节值。
+
+| 概念 | 含义 |
+|---|---|
+| link | 刚体部件及对应 frame |
+| joint | parent link 与 child link 的连接与运动规则 |
+| kinematic chain | base 到 end 的有序路径 |
+| tree | 完整机器人通常是一棵树；FK 取其中一条链 |
+
+</div>
+<div>
+
+```text
+Link5_l → left_arm_joint6 → Link6_l
+        → left_arm_joint7 → Link7_l
+        → Joint_hand_l → left_base_link
+        → gripper_center_joint → gripper_center
+```
+
+- 非根 link 通常只有一个 parent joint，可有多个 child joint。
+- 三自由度腕部常用三个单自由度 joint 串联。
+- joint 之间需要 link；中间 link 可以无实体长度或 mesh。
+- 本文只截取 A2D 左臂，不展示 2400 多行完整 XML。
+
+<div class="placeholder-line">动画：整机淡化并高亮左臂；图：简化 A2D 左臂 URDF Tree</div>
+
+</div>
+</div>
+
+<div class="small">完整示例：<code>assets/source/A2D.urdf</code></div>
+
+---
+
+<div class="eyebrow">09 · URDF joint</div>
+
+# 一个真实 Joint 定义了什么：以 left_arm_joint6 为例
+
+<div class="doc-grid wide-left">
 <div>
 
 ```xml
 <joint name="left_arm_joint6" type="revolute">
-  <origin xyz="0 0 0"
-          rpy="-1.5708 0 3.1416"/>
+  <origin xyz="0 0 0" rpy="-1.5708 0 3.1416"/>
   <parent link="Link5_l"/>
   <child link="Link6_l"/>
   <axis xyz="0 0 -1"/>
@@ -349,239 +408,174 @@ URDF 是 XML，主要描述：
 </div>
 <div>
 
-| 字段 | 含义 |
+| 字段 | 含义 / 注意点 |
 |---|---|
 | parent / child | 连接的前后 link |
-| origin | 固定安装位姿 |
-| axis | 旋转或平移轴 |
-| type | 运动类型 |
-| limit | 位置、速度、力矩限制 |
+| origin xyz/rpy | joint frame 相对 parent 的固定安装位姿；**不是当前角度** |
+| axis | revolute 旋转轴或 prismatic 平移轴；在 joint frame 表达 |
+| type | fixed / revolute / continuous / prismatic |
+| limit | 位置、速度、力矩等限制 |
 
-<div class="small muted">`origin rpy` 不是当前 joint angle；运行时角度来自 Action/State joint position。</div>
+`axis="0 0 -1"` 表示绕 joint frame 的负 Z 轴旋转。当前 q 来自 Action/State joint position。URDF 允许任意合法 axis；主轴方向只是数据现状或内部约定，不是 URDF 限制。
 
 </div>
 </div>
 
-<!--
-1 分 30 秒。axis 0 0 -1 表示绕 joint frame 的负 Z 轴旋转。URDF 允许任意合法轴向量。
--->
+<div class="placeholder-line">动画占位：先显示 origin，再显示负 Z axis，最后播放 Link6_l 随 q 旋转（6–10 秒）</div>
 
 ---
 
-<div class="eyebrow">12 · Mesh and STL</div>
+<div class="eyebrow">10 · Mesh / STL</div>
 
-# Mesh、STL 与 Link：形状不等于结构
+# Mesh、STL、可见 Link 与 Meshless Link
 
-<div class="two-col">
+<div class="doc-grid">
 <div>
 
 ```xml
 <link name="Link6_l">
-  <visual>
-    <geometry>
-      <mesh filename="./meshes/Link6_l.STL"/>
-    </geometry>
-  </visual>
-  <collision>
-    <geometry>
-      <mesh filename="./meshes/Link6_l.STL"/>
-    </geometry>
-  </collision>
+  <visual><geometry>
+    <mesh filename="./meshes/Link6_l.STL"/>
+  </geometry></visual>
+  <collision><geometry>
+    <mesh filename="./meshes/Link6_l.STL"/>
+  </geometry></collision>
 </link>
 ```
 
+**URDF** 管结构、连接和坐标关系；**STL** 只保存零件的三角形表面，不知道自己属于哪个机器人，也不知道 parent、child、joint 或运动规则。
+
 </div>
 <div>
 
-<div class="quote-big" style="margin-top:18px;font-size:27px"><strong>URDF</strong>：结构、连接和坐标关系<br><br><strong>STL</strong>：零件的三角形表面</div>
+| 元素 | 用途 |
+|---|---|
+| visual | 显示；visual origin 是 mesh 相对 link frame 的放置方式 |
+| collision | 碰撞检测；常可用更简单 mesh 降低计算量 |
+| inertial | 动力学属性；本次不展开 inertia 计算 |
 
-- `visual`：显示
-- `collision`：碰撞检测
-- `inertial`：动力学属性
+A2D 的 Link6_l visual/collision 引用同一 STL。相反，`gripper_center` 无 mesh 仍有 frame 语义；meshless link 也可用于 TCP、传感器 frame 或虚拟中间结构。
+
+<div class="placeholder-line">待补：Link6_l frame 与 STL；gripper_center frame</div>
 
 </div>
 </div>
-
-<!--
-1 分 10 秒。STL 不知道 parent、child 或运动规则。visual origin 是 mesh 相对 link frame 的放置方式，不是 joint origin。
--->
 
 ---
 
-<div class="eyebrow">13 · Meshless link</div>
+<div class="eyebrow">11 · Three information layers</div>
 
-# 没有 Mesh 的 Link，仍然很有意义
+# URDF Joint、运行时 Joint 与 TF Transform 不是同一层
 
-<div class="two-col wide-left">
+<div class="three-col">
 <div>
 
-```xml
-<link name="gripper_center"/>
+## URDF Joint · 静态
 
-<joint name="gripper_center_joint" type="fixed">
-  <origin xyz="0.0 0.0 0.23"
-          rpy="0 0 -1.57079632679"/>
-  <parent link="left_base_link"/>
-  <child link="gripper_center"/>
-</joint>
+- parent / child
+- origin position + orientation
+- axis / type / limit
+- 规定结构和允许的运动
+
+</div>
+<div>
+
+## 运行时 Joint · 动态
+
+- position `q`
+- 可选 velocity / effort
+- 常见一自由度 joint 的 position 通常是一个标量
+
+</div>
+<div>
+
+## TF Transform · 计算结果
+
+- parent frame → child frame
+- translation + rotation
+- 带 timestamp，随 joint state 更新
+
+</div>
+</div>
+
+<div class="doc-grid images-2" style="margin-top:18px">
+<img class="doc-image short" src="./assets/source/a2d-tf-message-body.png" alt="base_link 附近 TFMessage">
+<img class="doc-image short" src="./assets/source/a2d-tf-message-arm.png" alt="Link5_l 到 Link6_l TFMessage">
+</div>
+
+<div class="doc-note">更准确的链路：URDF origin/axis/type + 当前 q → FK → TF transform → End Pose。截图中的 TFMessage 不是 URDF joint 原始定义。</div>
+
+---
+
+<div class="eyebrow">12 · Transform</div>
+
+# 齐次变换与单 Joint 变换
+
+<div class="doc-grid">
+<div>
+
+一个 pose 可写为 4×4 齐次变换：
+
+$$T=\begin{bmatrix}R&p\\0&1\end{bmatrix}$$
+
+- `R`：3×3 rotation matrix，表示姿态
+- `p`：3×1 position，表示位置
+- 多个相邻 frame 的旋转和平移可用矩阵乘法连续组合
+
+正文不推导齐次坐标；只需理解 FK 为什么不断做 4×4 multiplication。
+
+</div>
+<div>
+
+$$T_{parent\rightarrow child}(q)=T_{origin}T_{motion}(q)$$
+
+| Joint type | 变换 |
+|---|---|
+| fixed | $T=T_{origin}$ |
+| revolute / continuous | $T=T_{origin}R(axis,q)$ |
+| prismatic | $T=T_{origin}Trans(axis\cdot q)$ |
+
+revolute/continuous 的 q 通常为 rad；prismatic 通常为 m。fixed joint 虽无 q，但可能包含关键 origin，不能从 chain 删除。`origin` 在前、`motion` 在后，顺序不可交换。
+
+</div>
+</div>
+
+<div class="placeholder-line">待补：齐次矩阵示意；动画“先应用 origin，再应用 joint motion”（8–12 秒）</div>
+
+---
+
+<div class="eyebrow">13 · Forward kinematics</div>
+
+# FK：从单位矩阵开始，沿 base → end 有序累积
+
+<div class="doc-grid wide-right">
+<div>
+
+```text
+base_link → shoulder → elbow → wrist → reference end
 ```
 
-- 它没有 visual、collision 或 mesh
-- 仍然是合法的 link / frame
-- 可用作 reference end、TCP 或传感器 frame
+$$T_{base\rightarrow end}=T_1T_2\cdots T_n$$
 
-</div>
-<div class="media-placeholder">
-  <div><strong>待补：gripper_center 可视化</strong>打开 frame 后显示在手部前方 0.23 m<br><span class="tiny">assets/final/gripper-center-frame.png</span></div>
-</div>
-</div>
+每一步：
 
-<!--
-50 秒。Link 的核心是刚体关系和 frame，不是必须看得见的零件。名字叫 gripper_center 也不自动等于业务 TCP。
--->
+```text
+base_to_child = base_to_parent @ parent_to_child
+```
 
----
+矩阵有方向和顺序，不能交换。若得到 `end→base`，需要求逆。最终 position 来自 `T[:3,3]`，rotation matrix 再转输出 quaternion。
 
-<div class="eyebrow">14 · Three layers</div>
-
-# 不要把三层信息都叫“Joint 信息”
-
-<div class="flow" style="grid-template-columns:repeat(3,1fr)">
-  <div><strong>URDF Joint</strong><br><span class="small muted">origin · axis · type<br>parent · child · limit</span></div>
-  <div><strong>运行时 Joint</strong><br><span class="small muted">position<br>可选 velocity / effort</span></div>
-  <div><strong>TF Transform</strong><br><span class="small muted">translation + rotation<br>parent frame → child frame</span></div>
-</div>
-
-<div class="two-col" style="margin-top:26px">
-<img class="image-frame" style="max-height:165px" src="./assets/source/a2d-tf-message-body.png" alt="躯干 TFMessage">
-<img class="image-frame" style="max-height:165px" src="./assets/source/a2d-tf-message-arm.png" alt="手臂 TFMessage">
-</div>
-
-<div class="small muted" style="margin-top:10px">图中 TFMessage 是计算后的 frame 关系，不是 URDF joint 原始定义。</div>
-
-<!--
-1 分 20 秒。用户特别提出 position、orientation、axis，这里做精确纠正：URDF joint 有固定 origin 和 axis；运行时 joint 通常只有标量 q；FK 结果才是 translation + orientation。
--->
-
----
-
-<div class="eyebrow">15 · Transform</div>
-
-# 用一个 4×4 矩阵同时装下位置和姿态
-
-<div class="two-col">
-<div style="font-size:30px;padding-top:45px">
-
-$$
-T=
-\begin{bmatrix}
-R & p\\
-0 & 1
-\end{bmatrix}
-$$
+<div class="placeholder-line">动画：坐标架沿 A2D 左臂逐级累积（10–15 秒）</div>
 
 </div>
 <div>
-
-## `R` · Rotation matrix
-
-3×3，表示姿态。
-
-## `p` · Position
-
-3×1，表示位置。
-
-## 为什么要用 `T`？
-
-相邻坐标系的旋转与平移，可以用矩阵乘法连续组合。
-
-</div>
-</div>
-
-<div class="small muted">RPY 和 quaternion 可以先转换为 rotation matrix，最终结果也可以再转换回 quaternion。</div>
-
-<!--
-1 分 20 秒。不推导齐次坐标，只解释为什么 FK 代码会不断进行 4×4 matrix multiplication。
--->
-
----
-
-<div class="eyebrow">16 · Joint transform</div>
-
-# 单个 Joint = 固定安装 + 运行时运动
-
-$$
-T_{parent\rightarrow child}(q)=T_{origin}\,T_{motion}(q)
-$$
-
-| Joint type | 运行时变换 |
-|---|---|
-| `fixed` | $T=T_{origin}$ |
-| `revolute / continuous` | $T=T_{origin}\,R(axis,q)$ |
-| `prismatic` | $T=T_{origin}\,Trans(axis\cdot q)$ |
-
-<div class="semantic-line" style="margin-top:24px">
-  <div><span class="label">固定输入</span><span class="value">origin · axis · type</span></div>
-  <div><span class="label">动态输入</span><span class="value">joint position q</span></div>
-  <div><span class="label">输出</span><span class="value">parent → child</span></div>
-</div>
-
-<div class="small muted">`origin` 在前、`motion` 在后；矩阵乘法顺序不能交换。fixed joint 没有 q，但不能从 chain 中删除。</div>
-
-<!--
-1 分 30 秒。revolute 通常是 rad，prismatic 通常是 m；axis 在 joint frame 中表达。
--->
-
----
-
-<div class="eyebrow">17 · Forward kinematics</div>
-
-# FK：沿运动链逐级累积
-
-<div class="chain">
-  <span class="node">base_link</span><span class="joint">→</span>
-  <span class="node">shoulder</span><span class="joint">→</span>
-  <span class="node">elbow</span><span class="joint">→</span>
-  <span class="node">wrist</span><span class="joint">→</span>
-  <span class="node">reference end</span>
-</div>
-
-$$
-T_{base\rightarrow end}=T_1T_2\cdots T_n
-$$
-
-<div class="two-col" style="margin-top:22px">
-<div>
-
-1. 从单位矩阵开始
-2. 按 base → end 顺序遍历 joint
-3. 先乘 origin，再乘 motion(q)
-4. 最后一列得到 position
-5. 最终 rotation matrix 转 quaternion
-
-</div>
-<div class="media-placeholder" style="min-height:170px">
-  <div><strong>动画占位</strong>坐标架沿 A2D 左臂逐级传递<br><span class="tiny">assets/final/fk-chain.mp4</span></div>
-</div>
-</div>
-
-<!--
-1 分 20 秒。这里先给直觉，下一页再看实际代码。每一步都是 base_to_child = base_to_parent @ parent_to_child。
--->
-
----
-
-<div class="eyebrow">18 · FK in code</div>
-
-# 代码中，FK 的核心循环并不长
 
 ```python
 def forward_kinematics(chain, joint_values):
     T = identity_transform()
-
     for joint in chain:
-        T = T @ origin_transform(joint.origin_xyz,
-                                 joint.origin_rpy)
+        T = T @ origin_transform(
+            joint.origin_xyz, joint.origin_rpy)
 
         if joint.type in {"revolute", "continuous"}:
             T = T @ rotation_transform(
@@ -590,368 +584,293 @@ def forward_kinematics(chain, joint_values):
             T = T @ translation_transform(
                 joint.axis * joint_values[joint.name])
 
-    position = T[:3, 3]
-    orientation = matrix_to_quaternion(T[:3, :3])
-    return position, orientation
+    return T[:3, 3], matrix_to_quaternion(T[:3, :3])
 ```
 
-<div class="small muted">公式不复杂；工程正确性更依赖 chain、mapping、单位、方向和时间。</div>
+正文不展开 Rodrigues 与 `matrix_to_quaternion` 的内部推导。
 
-<!--
-1 分 20 秒。矩阵乘法有方向和顺序。如果算成 end→base，需要求逆。正文不展开 Rodrigues 与 matrix_to_quaternion 的内部推导。
--->
+</div>
+</div>
 
 ---
 
-<div class="eyebrow">19 · Engineering input</div>
+<div class="eyebrow">14 · FK engineering</div>
 
-# FK 真正需要准备的输入
+# FK 的输入、Action / State / TCP 与批量 H5
 
-<div class="two-col">
+<div class="three-col">
 <div>
 
-## 静态输入 · 只解析一次
+## 静态输入 · 解析一次
 
 - 有序 kinematic chain
 - parent / child / origin / axis / type
-- base link 与 reference end
+- base link / reference end
 - H5 channel → URDF joint mapping
 - 可预计算的 origin transform
 
 </div>
 <div>
 
-## 动态输入 · 每帧变化
+## 动态输入与输出
 
-- Action 或 State joint position
-- timestamp
+每帧输入：Action 或 State joint position + timestamp。
 
-## 输出
+输出：
 
-- `position: [x, y, z]`
-- `orientation: [x, y, z, w]`
-
-</div>
-</div>
+```text
+position:    [x, y, z]
+orientation: [x, y, z, w]
+```
 
 ```python
-action_end = fk(chain, action_joint_values)
-state_end  = fk(chain, state_joint_values)
+action_end = fk(chain, action_q)
+state_end  = fk(chain, state_q)
 tcp_end    = compose(state_end, tcp_offset)
 ```
 
-<!--
-1 分钟。强调同一 FK 模块分别接 Action 和 State；TCP 是在 reference end 上继续乘固定 offset。
--->
+</div>
+<div>
+
+## 批量 H5
+
+```text
+N frames × J joints
+→ N frames × end pose
+```
+
+- 不要每帧解析 URDF
+- 缓存 chain / origin transform
+- 批量构造 rotation / translation matrix
+- NumPy 向量化
+- 多 end 复用共享中间 transform
+- 减少小对象重复分配
+
+单帧复杂度约 O(J)。先保证语义和结果正确，再优化。
+
+</div>
+</div>
+
+<div class="placeholder-line">待补：URDF/Config + H5 Joint → Batch FK → End Pose 流程图</div>
 
 ---
 
-<div class="eyebrow">20 · Batch FK</div>
+<div class="eyebrow">15 · URDF tree / TF tree</div>
 
-# 面向 H5 的批量 FK：算法相同，组织方式不同
+# URDF Tree 是模型；TF Tree 是运行时 Frame 世界
 
-<div class="flow" style="margin:24px 0">
-  <div><strong>URDF + Config</strong><br><span class="small muted">chain · mapping · offset</span></div>
-  <div><strong>N × J Joint</strong><br><span class="small muted">Action / State</span></div>
-  <div><strong>Batch FK</strong><br><span class="small muted">复用静态结构</span></div>
-  <div><strong>N × End Pose</strong><br><span class="small muted">position + quaternion</span></div>
-</div>
-
-## 第一版先保证正确，再做这些优化
-
-<div class="small">
-
-- 缓存有序 chain；避免每帧解析 URDF
-- 预计算静态 origin transform
-- NumPy 批量构造 rotation / translation matrix
-- 多个 end 共享前半段 chain 时复用中间结果
-
-</div>
-
-<div class="small muted">单帧复杂度约为 O(J)；通常不是性能首先出问题，而是输入语义与 mapping。</div>
-
-<!--
-1 分 10 秒。这里只介绍优化方向，不展开 GPU FK 或复杂向量化实现。
--->
-
----
-
-<div class="eyebrow">21 · URDF tree vs TF tree</div>
-
-# URDF Tree 是模型；TF Tree 是运行时世界
-
-<div class="two-col wide-right">
+<div class="doc-grid wide-right">
 <div>
 
 | URDF Tree | TF Tree |
 |---|---|
-| link / joint 拓扑 | 所有 frame 的连接关系 |
-| 主要来自 XML | 来自 URDF、FK、传感器和程序 |
+| link/joint 拓扑 | 所有 frame 的连接关系 |
+| 主要来自 URDF XML | 来自 URDF、FK、传感器和程序 |
 | 不含每帧实时姿态 | transform 随时间更新 |
-| 主要描述机器人本体 | 可含 world、TCP、verify end |
+| 通常描述机器人本体 | 可含 world、camera、TCP、verify end |
+
+A2D TF Tree 包含 `world`、`base_link`、各级 link、TCP、verify action/state end。额外 end frame 不一定在原始 URDF，可由程序计算后发布。TF 必须维持树状父子关系；循环或多父节点会破坏解析。
 
 </div>
 <div>
-<img class="image-frame full" src="./assets/source/a2d-tf-tree-full.png" alt="A2D 完整 TF Tree">
+<img class="doc-image tree" src="./assets/source/a2d-tf-tree-full.png" alt="A2D 完整 TF Tree">
+<img class="doc-image tree-list" src="./assets/source/a2d-tf-tree-left-chain.png" alt="A2D 左臂 TF 层级">
 </div>
 </div>
 
-<div class="small muted">完整树用于看规模；现场再在 Foxglove 中放大 `world → base_link → 左臂 → end`。</div>
-
-<!--
-1 分 20 秒。额外 end frame 不一定存在于原始 URDF，可由程序计算后发布。TF Tree 不能出现循环或多父节点。
--->
+<div class="small">演示顺序：先看完整规模 → 放大 world→base_link → 追踪左臂 chain → 指出 TCP 与 verify end；不要缩小整图后要求听众读全部标签。</div>
 
 ---
 
-<div class="eyebrow">22 · Data pipeline</div>
+<div class="eyebrow">16 · Platform pipeline</div>
 
-# 公司中的高层处理流程
+# 公司中的高层处理与配置流程
 
-<div class="flow">
-  <div><strong>ROS / MCAP / H5</strong><br><span class="small muted">joint + raw end</span></div>
-  <div><strong>语义归一化</strong><br><span class="small muted">frame · mapping · time</span></div>
-  <div><strong>FK / TCP</strong><br><span class="small muted">verify action / state</span></div>
-  <div><strong>统一输出</strong><br><span class="small muted">H5 · 报告 · Foxglove</span></div>
+<div class="pipeline-row">
+  <div><strong>ROS / MCAP / H5</strong><br>Action/State Joint<br>厂商 Raw End</div>
+  <span>→</span>
+  <div><strong>语义归一化</strong><br>frame / endpoint<br>mapping / timestamp</div>
+  <span>→</span>
+  <div><strong>URDF / Config + FK</strong><br>Verify Action/State<br>Reference → TCP</div>
+  <span>→</span>
+  <div><strong>统一输出</strong><br>H5 / 报告<br>Foxglove</div>
 </div>
 
-<div class="two-col" style="margin-top:35px">
+<div class="doc-grid micro" style="margin-top:18px">
 <div>
 
-## 厂商 Raw End
+## 数据规则
 
-确认 endpoint 和 frame，转换到 `base_link`。
+- Raw End 先确认 frame / endpoint，再转换到 `base_link`。
+- Action/State joint 用同一 FK 模块分别算 verify end。
+- Reference End 叠加 fixed offset 得 TCP End。
+- H5、质量报告和 Foxglove 都应使用明确统一的 Pose 语义。
+- 可提 `h5_tf_exporter` / `hpc_executor`，正文不展开模块和完整 schema。
 
 </div>
 <div>
 
-## Action / State Joint
+## 配置角色
 
-通过同一 FK 模块分别计算 verify end，再按需叠加 TCP offset。
+| 配置 | 作用 |
+|---|---|
+| `robot.yaml` | URDF、base_link、joint limit、H5 channel→URDF joint mapping |
+| `end_config.yaml` | Raw / Verify / TCP 计算、raw frame、reference end、TCP offset |
+
+离线：URDF + 样例 H5 → 模板 → 人工补全 → MCAP/报告 → Foxglove 校验 → 发布配置。
+
+生产：读取配置/H5 → 归一化与 FK → 写回 End → 统计校验 → 交付数据。
 
 </div>
 </div>
-
-<!--
-1 分钟。可提到 h5_tf_exporter 和 hpc_executor，但正文不展开 schema 或模块细节。
--->
 
 ---
 
-<div class="eyebrow">23 · Validation</div>
+<div class="eyebrow">17 · Validation</div>
 
-# FK 与 End Pose 如何校验？
+# FK 与 End Pose 的校验方法和常见错误
 
-<div class="two-col">
+<div class="doc-grid wide-left">
 <div>
 
 ## 开发阶段
 
-1. **Zero pose**：所有可动 joint 设为 0
-2. **Single joint**：一次只动一个 joint
-3. **Fixed joint**：确认固定 offset/rotation 未丢失
-4. **Reference**：与 Foxglove 或已验证实现对比
-
-</div>
-<div>
+1. **Zero pose**：可动 joint 全为 0，与 URDF 查看器比较。
+2. **Single joint**：一次只动一个 joint，检查 child chain 和 axis。
+3. **Fixed joint**：确认固定 offset / rotation 未丢失。
+4. **Reference implementation**：与 Foxglove、已验证 FK 库或参考程序对比。
 
 ## 数据阶段
 
-1. 对齐 timestamp、endpoint、reference frame
-2. 叠加 Raw End 与 Verify End
-3. 比较 position 和 orientation 差异
-4. 检查轨迹连续性与异常跳变
+1. 先对齐 timestamp、endpoint、reference frame。
+2. 叠加 Raw End 与 Verify End。
+3. 比较 position 与 orientation 差异。
+4. 检查轨迹连续性与异常跳变。
+
+固定偏差多提示 frame、endpoint、offset 或 URDF 定义差异；抖动/跳变可能来自时间、数据、传感器、mapping 或通信。
 
 </div>
-</div>
-
-<div class="media-placeholder compact">
-  <div><strong>待补：误差模式示意</strong>固定偏差 vs. 随机抖动或跳变</div>
-</div>
-
-<!--
-1 分 20 秒。固定偏差常提示 frame、endpoint、offset 或 URDF 差异；跳变常提示时间、数据、mapping 或通信问题。
--->
-
----
-
-<div class="eyebrow">24 · Checklist</div>
-
-# 开发 FK 时，优先检查这些问题
-
-<ul class="checklist">
-  <li>矩阵乘法顺序</li>
-  <li>joint origin rotation</li>
-  <li>axis 所在 frame</li>
-  <li>fixed joint 是否遗漏</li>
-  <li>joint mapping</li>
-  <li>正负方向</li>
-  <li>degree / radian</li>
-  <li>mm / m</li>
-  <li>base→end 是否求反</li>
-  <li>quaternion 是 xyzw 还是 wxyz</li>
-  <li>Action / State 时间对齐</li>
-  <li>Raw / Verify endpoint 是否一致</li>
-</ul>
-
-<div class="quote-big" style="margin-top:30px;font-size:28px">公式通常不是最难的部分。<br><strong>语义、映射、单位、方向与时间</strong>决定工程结果是否可信。</div>
-
-<!--
-30 秒。快速展示排查顺序，不逐项解释。
--->
-
----
-
-<div class="eyebrow">Demo · Foxglove</div>
-
-# 最后用 Foxglove 把概念串起来
-
-<div class="two-col wide-right">
 <div>
 
-1. A2D 整体模型与 RGB frame
-2. TF Tree：`base_link → 左臂末端`
-3. Action End 与 State End
-4. Reference End 与 TCP
-5. 可选：DWHEEL Raw 与 Verify
-
-<div class="small muted" style="margin-top:24px">目标时长：2 分钟。现场动画由讲者后续补入；静态截图作为备用。</div>
-
-</div>
-<div class="media-placeholder" style="min-height:300px">
-  <div><strong>Foxglove / MCAP 演示区</strong>预录 MP4、WebM 或已定位好的 MCAP 时间段<br><span class="tiny">assets/final/foxglove-demo.webm</span></div>
-</div>
-</div>
-
-<!--
-1 分 30 秒。提前加载 layout 和数据，不在现场临时寻找 topic。
-如果演示条件不稳定，使用前面的静态截图完成讲解。
--->
-
----
-layout: center
----
-
-<div class="eyebrow">Takeaways</div>
-
-# 四个结论
-
-<div style="max-width:1050px;text-align:left;font-size:25px;line-height:1.5">
-
-<p><span class="number">01</span>Pose 只有在 <strong>endpoint、frame、timestamp</strong> 明确时才有完整意义。</p>
-
-<p><span class="number">02</span>Action/State、Raw/FK、Reference/TCP 是三组独立语义。</p>
-
-<p><span class="number">03</span>URDF 定义结构，运行时 joint 提供 q，FK 计算 TF 与 End Pose。</p>
-
-<p><span class="number">04</span>FK 的工程正确性主要依赖 mapping、单位、方向与时间对齐。</p>
-
-</div>
-
-<!--
-40 秒。正文到此结束；以下为附录，不计入 30 分钟。
--->
-
----
-class: appendix-slide
----
-
-# 附录 A · Raw End 坐标系归一化
-
-厂商提供：
-
-$$T_{vendor\rightarrow end}$$
-
-已知厂商 frame 相对 `base_link` 的变换：
-
-$$T_{base\rightarrow vendor}$$
-
-归一化到平台统一 frame：
-
-$$
-T_{base\rightarrow end}
-=T_{base\rightarrow vendor}T_{vendor\rightarrow end}
-$$
-
-> 计算前必须确认厂商 pose 的方向是 `vendor → end`，而不是 `end → vendor`。
-
----
-class: appendix-slide
----
-
-# 附录 B · TCP Offset
-
-$$
-T_{base\rightarrow tcp}
-=T_{base\rightarrow reference}T_{reference\rightarrow tcp}
-$$
-
-| 变换 | 来源 |
+| 问题 | 常见表现 |
 |---|---|
-| $T_{base\rightarrow reference}$ | 通过 State FK 计算 |
-| $T_{reference\rightarrow tcp}$ | URDF fixed joint 或人工标定 |
-| $T_{base\rightarrow tcp}$ | 最终具有操作语义的 TCP pose |
+| 矩阵顺序错误 | 整体位置姿态异常 |
+| 忽略 origin rotation | axis 方向错误 |
+| axis 所在 frame 错 | child 沿错误方向运动 |
+| 遗漏 fixed joint | 固定位置/姿态偏差 |
+| joint mapping 错 | link 跟随错误 joint |
+| 正负方向错 | 关节反向运动 |
+| degree/radian | 旋转幅度异常 |
+| mm/m | 放大或缩小 1000 倍 |
+| base/end 求反 | 得到 end→base |
+| xyzw/wxyz | orientation 异常 |
+| Action/State 未对齐 | 动态错位 |
+| endpoint 不同 | Raw/Verify 固定偏差 |
 
-<div class="media-placeholder" style="min-height:150px;margin-top:28px">
-  <div><strong>待补动画</strong>Reference End 固定叠加 TCP Offset</div>
 </div>
+</div>
+
+<div class="placeholder-line">待补：固定系统性偏差 vs 随机抖动/跳变示意</div>
+
+---
+
+<div class="eyebrow">18 · Foxglove demo</div>
+
+# 演示顺序、备用方案与核心结论
+
+<div class="doc-grid wide-right">
+<div>
+
+## 2 分钟演示
+
+1. A2D 整体模型与 RGB frame。
+2. TF Tree：从 `base_link` 追踪到左臂末端。
+3. Action End 与 State End。
+4. Reference End 与 TCP。
+5. 时间允许：DWHEEL Raw End 与 Verify End。
+
+优先用预录 MP4/WebM 或已定位 MCAP 时间段；提前加载 Foxglove layout 和数据，不现场寻找 topic。所有动画必须有静态截图或 PDF 备用。
+
+<div class="placeholder-box"><strong>Foxglove / MCAP 演示区</strong><br>后续替换为脱敏视频或已定位数据；完整 MCAP 不提交公开仓库。</div>
+
+</div>
+<div>
+
+## 四个结论
+
+1. Pose 只有在 endpoint、frame、timestamp 明确时才完整。
+2. Action/State 是目标/实际；Raw/FK 是来源；Reference/TCP 是末端语义。
+3. URDF 定义静态结构，运行时 joint 提供 q，FK 计算 TF 和 End Pose。
+4. FK 公式不复杂；工程正确性取决于 mapping、单位、坐标系、方向与时间对齐。
+
+## 开发时的第一原则
+
+> 先确认“这条数据描述的是什么”，再检查数值是否正确。
+
+</div>
+</div>
+
+<!-- 正文到此结束；以下附录不计入 30 分钟。 -->
 
 ---
 class: appendix-slide
 ---
 
-# 附录 C · Raw 与 Verify 误差
+<div class="eyebrow">APPENDIX A · 公式与误差</div>
 
-<div class="two-col">
+# Raw 归一化、TCP Offset 与 Raw/Verify 误差
+
+<div class="three-col">
 <div>
 
-## 位置误差
+## Raw 坐标归一化
 
-$$
-e_p=\lVert p_{raw}-p_{verify}\rVert
-$$
+$$T_{base\rightarrow end}=T_{base\rightarrow vendor}T_{vendor\rightarrow end}$$
+
+校验前先确认厂商 pose 是 `vendor→end`，而不是 `end→vendor`。
 
 </div>
 <div>
 
-## 姿态误差
+## TCP Offset
 
-$$
-e_q=2\arccos\left(\left|q_{raw}\cdot q_{verify}\right|\right)
-$$
+$$T_{base\rightarrow tcp}=T_{base\rightarrow reference}T_{reference\rightarrow tcp}$$
+
+前者来自 State FK；后者来自 URDF fixed joint 或人工标定。
+
+</div>
+<div>
+
+## 误差指标
+
+$$e_p=\lVert p_{raw}-p_{verify}\rVert$$
+
+$$e_q=2\arccos\left(\left|q_{raw}\cdot q_{verify}\right|\right)$$
+
+绝对值用于处理 `q/-q` 等价；指标只在 endpoint、frame、timestamp 一致后有效。
 
 </div>
 </div>
 
-- 使用绝对值，因为 `q` 与 `-q` 表示同一个旋转
-- 指标只在 endpoint、frame 与 timestamp 一致后有意义
-- 除均值外，建议观察分位数、最大值、异常段与时间趋势
+<div class="doc-note">除均值外还应观察分位数、最大值、异常区间和随时间的变化；Raw/Verify 不一致不必然等于 FK 错误。</div>
 
 ---
-class: appendix-slide
+class: appendix-slide compact-table
 ---
 
-# 附录 D · 单帧与批量 FK
+<div class="eyebrow">APPENDIX B · 实现与术语</div>
 
-<div class="two-col">
+# 单帧/批量 FK 与术语速查
+
+<div class="doc-grid wide-right">
 <div>
 
-## 单帧
+## 单帧与基础批量实现
 
 ```text
-J 个 joint value
-→ 一个 end pose
-复杂度约 O(J)
+J 个 joint value → 一个 end pose
+时间复杂度约 O(J)
 ```
-
-```python
-pose = forward_kinematics(chain, frame)
-```
-
-</div>
-<div>
-
-## 基础批量实现
 
 ```python
 poses = [
@@ -960,45 +879,79 @@ poses = [
 ]
 ```
 
-先保证每帧语义与结果正确，再向矩阵批处理演进。
+后续优化：缓存 chain；预计算 origin；批量构造矩阵；NumPy 向量化；复用共享中间 transform；避免每帧解析 URDF 和重复分配小对象。
 
 </div>
-</div>
+<div>
 
----
-class: appendix-slide
----
-
-# 附录 E · 配置与生产流程
-
-| 配置 | 高层作用 |
+| 术语 | 简要定义 |
 |---|---|
-| `robot.yaml` | URDF、base_link、joint limit、H5 channel → URDF joint mapping |
-| `end_config.yaml` | Raw、Verify、TCP 的计算方式、raw pose frame、reference end、TCP offset |
+| Pose / Frame | 位姿；以及表达它的坐标系 |
+| Link / Joint | 刚体及 frame；连接与运动关系 |
+| Joint position | 运行时运动量，旋转通常 rad、平移通常 m |
+| Transform / TF Tree | 两 frame 间平移旋转；运行时树状关系 |
+| FK | 模型 + joint position → end pose |
+| Action / State | 控制指令 / 传感器实际状态 |
+| Raw / Verify End | 厂商直接提供 / joint+URDF 计算的诊断位姿 |
+| Reference End / TCP | 选定 link/custom frame / 真实工具操作点 |
 
-<div class="flow" style="grid-template-columns:repeat(3,1fr);margin-top:42px">
-  <div><strong>离线准备</strong><br><span class="small muted">URDF + 样例 H5<br>生成配置模板</span></div>
-  <div><strong>人工补全</strong><br><span class="small muted">frame · mapping<br>end · offset</span></div>
-  <div><strong>生产执行</strong><br><span class="small muted">MCAP / H5<br>End Pose / 报告</span></div>
+</div>
 </div>
 
 ---
-class: appendix-slide compact-table
+class: appendix-slide materials-slide
 ---
 
-# 附录 F · 术语速查
+<div class="eyebrow">APPENDIX C · 素材与维护</div>
 
-| 术语 | 本分享中的含义 |
-|---|---|
-| Pose | position + orientation，并带 endpoint/frame/time 语义 |
-| Frame | 一套有原点和 XYZ 方向的坐标系 |
-| Link | 刚体部件及其 frame |
-| Joint | parent link 与 child link 之间的连接与运动规则 |
-| TF | 指定时刻 parent frame 到 child frame 的变换 |
-| FK | joint position → end pose 的正向运动学 |
-| Reference End | 运动链计算到的结构或语义末端 |
-| TCP | 真正执行操作的工具中心点 |
-| Raw End | 厂商直接提供的末端位姿 |
-| Verify End | 平台从 joint + URDF 自行计算的末端位姿 |
+# 素材清单、后续数据与 Slidev 维护约束
 
-<div class="small muted" style="margin-top:18px">内容底稿、详细讲解提示和素材计划见 <code>CONTENT.md</code>。</div>
+<div class="three-col micro">
+<div>
+
+## 已有素材
+
+- `A2D.urdf`：完整模型
+- side/top frames：封面、XYZ/frame
+- TF tree full/left chain：总览与局部
+- TF message body/arm：translation、rotation、quaternion、RPY
+- 图片 217 全透明，未加入有效展示
+
+## 待补图片
+
+`endpoints-reference-tcp.png`、`pose-semantics.svg`、`a2d-frames-clean.png`、`orientation-representations.svg`、`a2d-left-chain.svg`、`link6-mesh-frame.png`、`gripper-center-frame.png`、`homogeneous-transform.svg`、`batch-fk-pipeline.svg`、`error-patterns.svg`
+
+</div>
+<div>
+
+## 待补动画 / 视频
+
+- frame comparison：8–12 s
+- Action/State End：8–12 s
+- DWHEEL Raw/Verify：8–12 s
+- A2D chain highlight：6–10 s
+- joint6 motion：6–10 s
+- origin then motion：8–12 s
+- FK chain：10–15 s
+
+## 后续数据
+
+脱敏短 MCAP 或录屏；DWHEEL Raw/Verify 片段；Action/State 差异明显但正常的片段；Link6_l 单 joint 数据。完整 MCAP 不默认提交公开仓库。
+
+</div>
+<div>
+
+## Slidev 约束
+
+- 16:9 深色、与 Foxglove 一致
+- 单一 `slides.md` + 全局 CSS
+- 内置 layout、Markdown、本地图片/视频、KaTeX；必要时 Mermaid / v-click
+- 无第三方主题、插件、自定义 Vue
+- 无在线字体、CDN、远程媒体
+- 动画优先预录，其次静态 SVG / v-click
+- 颜色：XYZ 红绿蓝；Action/Raw 黄橙；State/Verify 青；TCP 紫
+- HTML 正式演示；PDF 离线备用
+- 文档型版本允许更高单页密度；长代码仍应拆分或高亮
+
+</div>
+</div>

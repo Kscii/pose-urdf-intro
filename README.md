@@ -28,9 +28,10 @@ npm run export
 
 ## 内容维护
 
-- `slides.md`：完整演示文稿，正文与演示收束 27 页，附录 6 页。
+- `slides.md`：文档型完整演示，正文与演示 20 页，附录 3 页，共 23 页。
 - `style.css`：全局视觉样式。
 - `CONTENT.md`：逐页内容底稿与讲解说明。
+- `COVERAGE.md`：`CONTENT.md` 到新版 Slidev 的内容映射。
 - `assets/source/`：A2D URDF 与已有 Foxglove 截图。
 - 待补动画或截图在 `slides.md` 中以虚线框标记，替换对应占位即可。
 
