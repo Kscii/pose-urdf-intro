@@ -28,7 +28,7 @@ npm run export
 
 ## 内容维护
 
-- `slides.md`：完整演示文稿，正文 24 页，附录 6 页。
+- `slides.md`：完整演示文稿，正文与演示收束 27 页，附录 6 页。
 - `style.css`：全局视觉样式。
 - `CONTENT.md`：逐页内容底稿与讲解说明。
 - `assets/source/`：A2D URDF 与已有 Foxglove 截图。

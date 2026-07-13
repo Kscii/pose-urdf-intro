@@ -5,7 +5,7 @@ titleTemplate: '%s · 位姿与 URDF 入门'
 author: kscii
 info: |
   面向数采训练场平台开发团队的 30 分钟入门分享。
-  正文 24 页，附录 6 页。
+  正文与演示收束 27 页，附录 6 页。
 colorSchema: dark
 transition: fade-out
 exportFilename: pose-urdf-intro
