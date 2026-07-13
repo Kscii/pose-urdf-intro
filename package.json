@@ -1,0 +1,15 @@
+{
+  "name": "pose-urdf-intro",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "slidev slides.md --open",
+    "build": "slidev build slides.md",
+    "build:pages": "slidev build slides.md --base /pose-urdf-intro/",
+    "export": "slidev export slides.md --output pose-urdf-intro.pdf"
+  },
+  "devDependencies": {
+    "@slidev/cli": "52.17.0",
+    "@slidev/theme-default": "0.25.0"
+  }
+}
