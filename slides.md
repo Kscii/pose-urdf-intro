@@ -15,26 +15,19 @@ mdc: true
 
 <div class="eyebrow">POSE · FRAME · URDF · TF · FK</div>
 
-# 从 Joint 到 End Pose
+# 未命名标题
 
-<div class="subtitle">数采平台中的坐标系、URDF 与位姿解算</div>
-
-<div class="cover-question">
-一个末端位姿究竟表示哪个点、相对谁、从哪里来？
-</div>
-
-<div class="doc-meta">受众：会写代码，但基本不了解 ROS / URDF / TF　·　目标时长：30 分钟　·　案例：A2D + Foxglove</div>
+<div class="subtitle">机器人位姿、坐标系、URDF 与末端位姿解算通识介绍</div>
 
 <!--
-30 秒。直接从问题进入；这是入门科普，也提供后续参与 FK 开发所需的最低基础。
-A2D 用于解释 URDF、TF 和 FK；拥有 raw end 的 DWHEEL 用于 Raw/Verify 对比。
+这里可以写注释
 -->
 
 ---
 
-<div class="eyebrow">00 · 阅读范围</div>
+<div class="eyebrow">00 · 大纲</div>
 
-# 学习目标、内容边界与 30 分钟安排
+# 讲解范围
 
 <div class="three-col micro">
 <div>
@@ -101,26 +94,27 @@ HTML 是正式演示版本；PDF 用作离线备用和存档。不单独预留 Q
 <div class="doc-grid wide-right">
 <div>
 
-末端位姿描述机器人上的某个操作点：
+末端位姿(end_pose) 描述机器人上的某个操作点：
 
 - **position**：在哪里，通常为 `[x, y, z]`
-- **orientation**：朝向哪里，可用 RPY / matrix / quaternion
-- **reference frame**：相对谁表达
+- **orientation**：朝向哪里，表达方式包含：
+  - RPY (roll, pitch, yaw)
+  - Rotation Matrix (3×3的旋转矩阵)
+  - Quaternion (x, y, z, w)
+- **reference frame**：end_pose 处于的坐标系
 
-平台用途：表达目标与实际状态；为训练数据提供统一操作语义；校验厂商数据、URDF 与 joint mapping；在 Foxglove 中重建与排查动作。
-
-> 末端可以是手腕、夹爪中心、工具尖端、相机光心、足底接触点或人工定义 frame，不一定是最后一个可见零件。
+> 目前我们内部对手臂末端的定义是使用arm的最后一个link作为reference end
 
 </div>
 <div>
 
-| 完整信息 | 回答的问题 | 常见错误 |
-|---|---|---|
-| endpoint | 描述哪个点？ | 两条数据实际不是同一点 |
-| reference frame | 相对谁？ | 数值看似接近但不能比较 |
-| timestamp | 哪个时刻？ | Action / State 动态错位 |
-| position | 在哪里？ | mm / m 混用 |
-| orientation | 朝向哪里？ | 顺序、单位、约定不一致 |
+|  - | - | 
+|---|---|
+| endpoint | 对应URDF中的哪个link |
+| reference frame | 相对的坐标系(比如 `world`、`base_link`、`vendor frame`) | 
+| timestamp | end_pose 对应的时间戳 | 
+| position | end_pose 的位置 `[x, y, z]` | 
+| orientation | end_pose 的姿态 `[x, y, z, w]` | 
 
 ```text
 可用 Pose = Position + Orientation
@@ -151,10 +145,10 @@ HTML 是正式演示版本；PDF 用作离线备用和存档。不单独预留 Q
   <span class="z-axis">Z · 蓝色</span>
 </div>
 
-- 这是 Foxglove、RViz 等工具的常见颜色约定，不是数学强制要求。
-- 每个 link 或自定义 frame 都可以拥有自己的 XYZ 轴；不同 frame 的轴方向可以完全不同。
-- 坐标轴随对应 link 运动；不能根据屏幕的上、下、左、右判断轴方向。
-- 不应简单说“红色就是 roll”。在指定约定下，roll / pitch / yaw 分别与绕 X / Y / Z 的旋转相关。
+- 这些颜色是 Foxglove、RViz 等工具的常见颜色约定。
+- 每个 link 都可以拥有自己的 XYZ 轴，目前我们内部的所有axis都是完全和xyz轴对齐的。
+- 坐标轴随对应 link 运动；
+- 通常roll代表绕X轴旋转，pitch代表绕Y轴旋转，yaw代表绕Z轴旋转。
 
 <div class="placeholder-line">待补：只显示 base_link、Link6_l、reference end、TCP 的简化截图</div>
 
