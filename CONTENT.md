@@ -1,309 +1,228 @@
-# URDF、End 与 FK 入门：内容维护稿
+# URDF、FK 与 End：内容维护稿
 
 > 受众：会写代码，但基本不了解 ROS、URDF、TF 和机器人运动学的数据处理开发人员
-> 正式演示文件：`slides.md`
+> 正式演示：`slides.md`
+> 目标时长：40–45 分钟
 
-## 1. 分享目标
+## 1. 贯穿主线
 
-这份 PPT 用 A2D 构型解释如何从机器人结构文件、H5 / rosbag 中的关节数据，以及 End 结果中理解末端位姿。
+整套教程始终回答同一个问题：**如何从已有机器人数据计算一条可使用的 End Pose？**
 
-听众应在分享后理解：
+```text
+URDF 静态结构 + H5 / rosbag 当前关节值
+                    ↓
+                   FK
+                    ↓
+                End Pose
+```
 
-1. URDF 如何用 link、joint、origin、axis、type 描述机器人结构。
-2. End Pose 必须说明 reference link、reference frame、timestamp、position、orientation。
-3. FK 如何把关节空间中的 joint values 映射成笛卡尔空间中的 End Pose。
-4. 代码里为什么会反复使用 4×4 transform 和 `@` 矩阵乘法。
+- URDF 是基础框架：定义 link、joint、parent/child、origin、axis 和 type。
+- 关节值是当前状态：同一套结构在不同 timestamp 下对应不同的 q。
+- FK 是数学方法：沿 base→end chain 逐段构造并累积 4×4 变换。
+- End Pose 是目标数据：必须明确 link、frame、timestamp、position 和 orientation。
 
-## 2. 内容边界
+贯穿示例固定为 A2D 左臂：
 
-包含：
+```text
+base_link → … → Link5_l → left_arm_joint6 → Link6_l
+          → Link7_l → left_base_link → gripper_center
+```
 
-- A2D 全身 link-joint-link 结构图。
-- A2D.urdf 中的真实 joint、fixed frame、gripper center 代码片段。
-- URDF 静态定义与 TF 运行时结果的区别。
-- H5 中 End 结构示例。
-- XYZ 坐标轴颜色约定。
-- base_link 坐标系与 world 坐标系的区别。
-- Action End、State End、Raw End、Verify End、TCP End。
-- DWHEEL Raw End 与统一 End 定义不一致的反例。
-- 运动学、FK/IK 对比、DH 参数、FK 伪代码。
+H5 动态输入使用仓库中的索引示例，并通过构型映射对接 A2D joint：
 
-不展开：
+```text
+joints/state/arm/position[:, 5]
+→ idx18_left_arm_joint6（原始通道名）
+→ q6
+→ left_arm_joint6（A2D URDF joint）
+```
 
-- 动力学、控制器设计、轨迹优化。
-- IK 数值求解。
-- 完整生产流程和配置 schema。
-- 复杂 quaternion / rotation matrix 推导。
+其中 `5` 是零基索引，即 `position` 的第 6 列。
 
-## 3. 页序
+## 2. 统一约定
 
-### 第 1 页：封面
+- `T_A_B` 表示 B frame 在 A frame 下的位姿；变量中的 `base` 是 `base_link` 的简称。
+- 变换按 `T_A_C = T_A_B @ T_B_C` 组合。
+- revolute / continuous 关节值使用 rad，prismatic 关节值使用 m。
+- End 的 position 使用 m，orientation 使用 quaternion `xyzw`。
+- `T_origin @ T_motion(q)` 的顺序在所有页面保持一致。
+- 本文只详解所选 A2D 代码中出现的字段，不扩展 `dynamics`、`calibration`、`safety_controller` 等可选标签。
 
-标题：URDF、End 与 FK
+## 3. 页序与讲解重点
 
-说明：
+### 第 1 页：封面与核心数据流
 
-- 从 A2D 的 URDF、H5 关节数据和 End 结果出发。
-- 目标是让开发人员能看懂结构、语义和 FK 代码之间的关系。
+- 直接给出 `URDF + joint q → FK → End Pose`。
+- 说明章节顺序与数学数据流统一为 URDF→FK→End。
 
-### 第 2 页：URDF 模块分隔页
+### 第 2 页：URDF 模块分隔
 
-说明：
-
+- 高亮 INPUT。
 - URDF 回答“机器人结构是什么”。
-- 本模块重点是 link、joint、origin、axis、type 和语义 frame。
 
-### 第 3 页：A2D：从底盘 base_link 到 effector 的完整链路
+### 第 3 页：A2D 完整结构
 
-页面内容：
+- 定义 URDF、link 和 joint。
+- link 是节点/刚体 frame，joint 是 parent→child 的边。
+- 强调 link 不独立声明自己的空间位置，位置由连接它的 joint 决定。
 
-- 使用 `a2d-foxglove-side-frames.png` 和 `a2d-foxglove-top-frames.png`。
-- 说明 A2D 从底盘 `base_link` 到 effector 的完整结构是反复连接的 `link → joint → link`。
+### 第 4 页：Link6_l 与 left_arm_joint6 紧凑骨架
 
-讲解提示：
+- 左栏加宽，展示包含 `Link5_l`、`Link6_l` 和完整 `left_arm_joint6` 的教学摘录。
+- 用小标签说明名称、连接关系和 joint 数值来自 A2D，完整 link 子字段在后续页展开。
+- 右栏只建立一层字段地图，不提前展开字段内部结构：
+  - Link：简单说明 `inertial / visual / collision` 分别负责物理属性、显示外观和碰撞模型。
+  - Joint：简单说明 `origin / parent / child / axis / limit` 分别负责安装位姿、连接方向、运动轴和运动约束。
+- 两张卡分别提示第 5–6 页和第 7 页将继续详解，形成“先认识字段，再理解字段内部内容”的过渡。
+### 第 5 页：Link inertial 字段
 
-- 先用全身图建立直觉，再进入 URDF 代码。
-- 侧视图和俯视图都用于说明完整结构，不需要逐个 frame 读完。
+- 使用 `Link6_l` 的真实 `origin / mass / inertia` 数值。
+- `inertial/origin` 是质心和惯性参考系相对 link frame 的变换。
+- 质量单位 kg，惯性张量单位 kg·m²。
 
-### 第 4 页：URDF：用 Link 和 Joint 描述机器人
+### 第 6 页：Link visual 与 collision 字段
 
-页面内容：
+- 逐项解释 `origin / geometry / mesh / material / color`。
+- visual 负责显示，collision 负责碰撞检测。
+- A2D 当前两者引用同一 STL，但职责不能混淆。
 
-- 使用 `A2D.urdf` 中 `joint_left_arm_mount` 和 `left_arm_joint6` 的真实代码。
-- 表格解释 `parent/child`、`origin xyz/rpy`、`type`、`axis`。
-- XML 里保留短注释，帮助讲解固定安装和可动关节。
+### 第 7 页：left_arm_joint6 完整字段
 
-讲解提示：
+- 逐项解释 `name / type / origin / parent / child / axis / limit`。
+- `axis` 在 joint frame 中表达。
+- `lower/upper` 约束位置；revolute 的 effort/velocity 常用 N·m 与 rad/s，prismatic 常用 N 与 m/s；它们不直接进入基础 FK。
+- 简要对比 fixed、revolute、continuous、prismatic。
 
-- `fixed` joint 没有运行时 q，但它的 origin 仍是结构的一部分。
-- `revolute` joint 当前角度来自 H5 / rosbag。
+### 第 8 页：URDF 定义“怎么动”，关节值决定“动了多少”
 
-### 第 5 页：`origin` 是安装位置，不是当前关节角
+- `origin/type/axis` 来自静态 URDF。
+- `q6` 来自当前 H5/rosbag 帧。
+- 本段变换为 `T_origin_6 @ T_motion_6(q6)`。
 
-页面内容：
+### 第 9 页：URDF 与 H5 数据会合
 
-- 使用 `left_arm_joint6` 片段说明 `origin`、`axis`、运行时 `q6` 的区别。
-- 展示 `T_origin @ rotation_transform(axis, q6)`。
+- 展示 `joints/state/arm/position[t, 5]` 的真实索引示例，以及原始通道名到 A2D `left_arm_joint6` 的构型映射。
+- URDF 定义“怎么动”，H5 定义“这一帧动了多少”。
+- 到此 FK 的两类输入已经齐备。
 
-讲解提示：
+### 第 10 页：取出 End Chain
 
-- `origin rpy` 是固定安装旋转。
-- `axis="0 0 -1"` 是运行时运动轴，不代表当前角度。
+- 使用 `Joint_hand_l` 和 `gripper_center_joint` 真实片段。
+- `gripper_center` 没有 mesh，但可以作为语义末端 frame。
 
-### 第 6 页：从 URDF Tree 里取出一条 End Chain
+### 第 11 页：URDF 与 TF
 
-页面内容：
+- URDF 是静态模型；TF 是某一 timestamp 下的运行时 transform。
+- 交接：静态结构和当前关节值已经得到，下一模块直接进行 FK 计算。
 
-- 使用 `Joint_hand_l` 和 `gripper_center_joint` 的真实代码。
-- 说明 `gripper_center` 可以是没有 mesh 的语义 frame。
+### 第 12 页：FK 模块分隔
 
-讲解提示：
+- 高亮 METHOD。
+- 回顾输入是 URDF chain 与 joint values，输出是 End Pose。
 
-- End 不一定是最后一个可见零件。
-- meshless link 常用于 reference end、TCP、传感器 frame。
+### 第 13 页：机器人运动学
 
-### 第 7 页：URDF 是静态定义，TF 是运行时结果
+- 区分关节空间与笛卡尔空间。
+- FK：joint values→End Pose；IK 只做对比，不展开。
 
-页面内容：
+### 第 14 页：4×4 齐次变换
 
-- 左侧表格比较 URDF 和 TF。
-- 右侧半页放 `a2d-tf-message-body.png` 和 `a2d-tf-message-arm.png`。
+- 左上 3×3 是旋转，右侧 3×1 是位置。
+- 明确定义 `T_A_B`，强调矩阵乘法顺序。
 
-讲解提示：
+### 第 15 页：DH 与 URDF
 
-- URDF 描述结构，TF message 是某一帧的计算结果。
-- TF 可用于检查 parent/child、timestamp、translation、quaternion。
+- 两者都把每段结构变成 4×4 矩阵再连乘。
+- DH 只用于建立直觉；A2D 主线继续直接解析 URDF。
 
-### 第 8 页：End 模块分隔页
+### 第 16 页：left_arm_joint6 的 motion
 
-说明：
+- 从 H5 取得 `q6`。
+- 从 URDF 取得 origin、axis 与 type。
+- 生成 `T_Link5_l_Link6_l = T_origin_6 @ T_motion_6`。
+- fixed/revolute/prismatic 只在 `T_motion` 的构造方式上不同。
 
-- End 回答“描述哪个末端点、相对哪个坐标系、在什么时刻、用什么格式表达”。
+### 第 17 页：FK Tree
 
-### 第 9 页：一条可使用的 End Pose 必须说明什么
+- 从 `base_link` 沿唯一 parent→child 路径走到 `gripper_center`。
+- 结果记为 `T_base_gripper_center`，其中 `base` 指 `base_link`。
 
-页面内容：
+### 第 18 页：FK 算法
 
-- 左侧表格只保留 `字段 | 含义`。
-- 在同页补充 orientation 的三种常见表达：Quaternion、Rotation Matrix、RPY。
-- 右侧放 `assets/source/一个有end的h5的结构的例子（normalize）.png`。
+- 从单位矩阵开始。
+- 为每个 joint 生成 `T_parent_child`。
+- 按顺序执行 `T_base_current @ T_parent_child`。
+- 返回最终 `T_base_end`。
 
-讲解提示：
+### 第 19 页：矩阵转 position 与 orientation
 
-- 比较两个 End 前，先确认 reference link、reference frame、timestamp 和姿态约定一致。
-- Quaternion 用于 H5 内部保存；Rotation Matrix 用于 FK 计算；RPY 便于人类阅读和 URDF 配置。
-- 三种表达描述同一个朝向，可以互相转换。
+- FK 返回 `T_base_gripper_center`。
+- position 取 `T[:3, 3]`。
+- orientation 取 `T[:3, :3]` 后转换为 quaternion `xyzw`。
+- chain 已确定起点 `base_link` 与终点 `gripper_center`，输入来自当前 `joint_values[t]`。
+- 此时只有几何结果；reference link/frame、timestamp 和 Raw/Verify/TCP 分类留到 End 模块显式组织。
+- 版式上左侧保留完整计算代码，右侧将“已确定的几何结果”和“仍待补齐的数据语义”分成两张卡；模块交接横跨页面底部。
+### 第 20 页：End 模块分隔
 
-### 第 10 页：XYZ 坐标轴颜色约定
+- 高亮 OUTPUT。
+- 承接上一模块的 position/orientation，再补齐 reference link/frame、timestamp 和业务类型。
 
-页面内容：
+### 第 21 页：End Pose 数据契约
 
-- 放 `assets/source/单独只有一个关节的图片，可以用于解释坐标轴的颜色.png`。
-- 简单说明红 X、绿 Y、蓝 Z。
+- 固定讲解 `reference_link / reference_frame / timestamp / position / orientation`。
+- Quaternion、Rotation Matrix、RPY 表达同一个朝向。
+- H5 orientation 使用 `xyzw`。
 
-讲解提示：
+### 第 22 页：XYZ 坐标轴颜色
 
-- 颜色是可视化工具约定。
-- 屏幕方向不等于坐标轴方向，要看 frame 自己的定义。
+- 红 X、绿 Y、蓝 Z。
+- 屏幕方向不等于 frame 轴方向。
 
-### 第 11 页：只区分两类：base_link 坐标系与 world 坐标系
+### 第 23 页：base_link 与 world
 
-页面内容：
+- 手臂 FK 默认先得到相对 `base_link` 的 End Pose。
+- world 是外部参考系，需要额外的 `world→base_link` 来源。
 
-- 表格只保留 `base_link` 和 `world` 两类。
-- 右侧放地面 world 和基站/第三方相机 world 两张图。
+### 第 24 页：DWHEEL Raw End 反例
 
-讲解提示：
+- 厂商 Raw End 可能不以统一 `base_link` 表达。
+- 数值比较前先对齐 frame、endpoint 和姿态约定。
 
-- `base_link` 是机器人本体上的运动学根 frame。
-- `world` 是外部参考系，可以由地面、接地点、基站、第三方相机或标定板定义。
+### 第 25 页：Action/State/Raw/Verify/TCP
 
-### 第 12 页：DWHEEL：为什么 Raw End 需要统一坐标系
+- Action/State 描述时间或数据语义，Raw/Verify 描述来源，TCP 描述 endpoint。
+- Verify End 已在上一模块由 URDF、joint values 和 FK 计算。
 
-页面内容：
+### 第 26 页：TCP End
 
-- 使用 `dwheel的baselink的定义和我们的定义不一致.png`。
-- 说明部分构型的厂商 Raw End 不以统一 `base_link` 表达。
-- DWHEEL 作为例子：厂商 Raw End 参考系在两侧肩膀附近，而不是地盘 `base_link`。
+- `T_base_tcp = T_base_reference @ T_reference_tcp`，其中 reference end 来自上一模块的 FK。
+- TCP 误差可能包含安装、几何和标定误差。
+- 收束：为 FK 几何结果补齐 link、frame、timestamp 和 endpoint 语义。
 
-讲解提示：
+### 第 27 页：完整逻辑链总结
 
-- 这页重点不是 DWHEEL 这个构型本身，而是说明 Raw End 进入数据流程后必须校验。
-- Raw End 比较前要检查 reference frame、endpoint 和 orientation 约定。
-- 没有明确固定变换和 endpoint 定义时，不能直接比较 Raw End 与 FK End。
+- URDF 是基础框架。
+- 关节角是当前状态。
+- FK 是数学工具。
+- End Pose 是目标数据。
+- 结尾统一复述：从 URDF 取结构、从 H5 取当前关节角，用 FK 计算指定 frame 下的 End Pose。
 
-### 第 13 页：Action End、State End、Raw End 与 Verify End
+## 4. 建议时间分配
 
-页面内容：
+| 部分 | 时间 |
+|---|---:|
+| 封面与主问题 | 1–2 分钟 |
+| URDF 模块 | 14–16 分钟 |
+| FK 模块 | 13–15 分钟 |
+| End 模块 | 10–12 分钟 |
+| 总结与提问 | 2 分钟 |
 
-- 表格解释 Action、State、Raw、Verify、TCP。
-- 右侧放 Action/State 错位示意图，尽量完整展示，不大幅裁剪。
+## 5. 素材与维护约束
 
-讲解提示：
-
-- 这些不是五个物理末端，而是数据来源、时间语义、endpoint 语义的组合。
-- Raw 与 Verify 不一致时，先检查语义。
-
-### 第 14 页：TCP End：从参考末端到真实工具点
-
-页面内容：
-
-- 使用 TCP 图片辅助讲解。
-- 代码：`T_base_tcp = T_base_reference @ T_reference_tcp`。
-- 明确说明人形机器人领域里 `tcp_end` 还没有完全统一的行业定义。
-
-讲解提示：
-
-- 本文采用的定义是：reference end + 固定标定偏移。
-- TCP 误差可能来自工具安装、夹爪几何或标定偏差。
-
-### 第 15 页：FK 模块分隔页
-
-说明：
-
-- FK 回答“给定一组关节值，末端在哪里”。
-
-### 第 16 页：什么是机器人运动学？
-
-页面内容：
-
-- 解释运动学不考虑力或力矩。
-- 区分关节空间和笛卡尔空间。
-- 对比 FK 和 IK。
-
-讲解提示：
-
-- 本文主线是 FK：`joint_values + URDF chain → End Pose`。
-
-### 第 17 页：齐次变换矩阵：用代码读懂一个 4×4
-
-页面内容：
-
-- 完整 4×4 `T` 代码。
-- `T[:3, :3]` 是旋转矩阵。
-- `T[:3, 3]` 是当前位置。
-- 展示 `@` 连乘。
-
-讲解提示：
-
-- 矩阵乘法顺序表达 frame 的方向。
-- 代码注释只用于提示矩阵区域，不展开推导。
-
-### 第 18 页：DH 参数：标准化的建模语言
-
-页面内容：
-
-- 表格参数名与代码一致：`a`、`alpha`、`d`、`theta`。
-- 展示 `dh_transform(a, alpha, d, theta)`。
-
-讲解提示：
-
-- DH 适合讲“参数表 + 变换矩阵 + 连乘”。
-- A2D 这类数据更适合直接解析 URDF。
-
-### 第 19 页：由当前关节值构造 Motion 变换
-
-页面内容：
-
-- 区分来自 URDF 的固定安装变换 `T_origin` 与由当前关节值生成的 `T_motion(q)`。
-- 分别展示 revolute joint 绕局部 Z 轴旋转 90 度，以及 prismatic joint 沿局部 Y 轴移动 0.03m 时的 motion 矩阵。
-- 明确两个矩阵是两个独立的一自由度示例，不是在一个普通 joint 上同时旋转和平移。
-- 展示 `T_parent_child = T_origin @ T_motion`，并衔接 `T_base_child = T_base_parent @ T_parent_child`。
-
-讲解提示：
-
-- `origin` 描述零位时的固定安装关系；`type + axis + q` 才决定当前帧的运动。
-- revolute 的 motion 只包含绕 axis 的旋转；prismatic 的 motion 只包含沿 axis 的平移。
-- motion 的 axis 在 joint 局部坐标系中表达，因此矩阵顺序是 `T_origin @ T_motion(q)`。
-- 这一页的乘法顺序应与第 21 页 FK 伪代码保持一致。
-
-### 第 20 页：FK Tree：从 base_link 一层一层走到 End
-
-页面内容：
-
-- 使用 `assets/source/a2d-tf-tree-full.png` 单独展示完整 TF tree。
-- 强调 FK 先找从 `base_link` 到目标 end 的 parent→child 路径。
-
-讲解提示：
-
-- FK 不是随便挑 joint 相乘，而是必须沿 tree 的路径顺序相乘。
-- 最终得到的是 end 在 `base_link` 坐标系下的 pose。
-
-### 第 21 页：沿 base → end 的运动链累积变换
-
-页面内容：
-
-- FK 伪代码。
-- 每个 joint 生成 `T_parent_child`，然后 `T = T @ T_parent_child`。
-- 代码里有短注释，帮助说明固定安装变换、运行时运动和最终输出。
-
-讲解提示：
-
-- 伪代码假设 joint name mapping、单位、正负号已经处理。
-- FK 矩阵算法很短，容易出错的是输入语义。
-
-## 4. 素材清单
-
-| 文件 | 用途 |
-|---|---|
-| `A2D.urdf` | URDF 代码片段来源 |
-| `assets/source/a2d-foxglove-side-frames.png` | A2D 全身侧视结构 |
-| `assets/source/a2d-foxglove-top-frames.png` | A2D 全身俯视结构 |
-| `assets/source/a2d-tf-message-body.png` | URDF/TF 对比页右侧辅助图 |
-| `assets/source/a2d-tf-message-arm.png` | URDF/TF 对比页右侧辅助图 |
-| `assets/source/a2d-tf-tree-full.png` | FK 算法页完整 TF tree |
-| `assets/source/一个有end的h5的结构的例子（normalize）.png` | End 数据契约页 H5 示例 |
-| `assets/source/单独只有一个关节的图片，可以用于解释坐标轴的颜色.png` | XYZ 颜色约定 |
-| `assets/source/基于地面的世界坐标系的例子，具体内容看文档.png` | world/base_link 页地面方案 |
-| `assets/source/基于基站或者第三方摄像头获取的世界坐标系，具体内容看文档.png` | world/base_link 页基站/相机方案 |
-| `assets/source/展示action_end和state_end的图片，说明了action_end和state_end在运动的时候通常会有一定错位.png` | Action/State 示例 |
-| `assets/source/dwheel的baselink的定义和我们的定义不一致.png` | DWHEEL Raw End 定义不一致反例 |
-| `assets/source/用于讲解tcp_end的图片，说明了tcp_end的一种标定方式为从effector的baselink平移变换得到.png` | TCP End 示例 |
-
-## 5. 维护约束
-
-- 正式页优先使用“真实代码片段 / 数据截图 / 简短表格 / 代码伪实现”。
-- 少用数学公式，多用 `@`、`T[:3, :3]`、`T[:3, 3]` 等代码表达。
-- 代码注释要短，只解释讲解点，不写成长段说明。
-- 避免把内部流程描述成一个正式“平台”。
-- 修改页序后同步更新本文件。
+- `A2D.urdf`：Link6_l、left_arm_joint6 和 gripper_center 真实代码来源。
+- `资料文档.md`：H5 joint mapping 与 End 数据约定来源。
+- `assets/source/`：A2D frame、TF、End、world、DWHEEL、Action/State、TCP 图片。
+- 正式页优先使用真实代码、真实映射、已有截图和简短表格。
+- 修改符号时同时检查 `T_A_B` 定义、矩阵顺序、单位和 quaternion 顺序。
+- 修改页序或字段含义后同步更新本文件。
+- 基础 FK 不展开动力学、控制器、IK 求解、轨迹优化或 URDF 未使用的可选标签。

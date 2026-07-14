@@ -1,6 +1,6 @@
 # 从 Joint 到 End Pose
 
-面向数采训练场平台开发团队的 30 分钟入门分享，介绍机器人位姿、坐标系、URDF、TF 与 FK。
+面向数采训练场平台开发团队的 40–45 分钟入门分享，围绕“URDF 静态结构 + 当前关节值 → FK → End Pose”介绍机器人位姿、坐标系、URDF、TF 与 FK。
 
 ## 本地运行
 
@@ -29,7 +29,7 @@ npm run export
 
 ## 内容维护
 
-- `slides.md`：公司内部业务文档型演示，按“业务问题—数据契约—坐标与末端语义—URDF—FK—验证交付”组织。
+- `slides.md`：正式演示，按 URDF、FK、End 三个模块组织，并由同一条 A2D 左臂数据链贯穿。
 - `style.css`：全局视觉样式。
 - `CONTENT.md`：逐页内容底稿与讲解说明。
 - `assets/source/`：A2D URDF 与已有 Foxglove 截图。

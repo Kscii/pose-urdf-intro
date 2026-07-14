@@ -1,21 +1,21 @@
 ---
 theme: default
-title: URDF、End 与 FK
+title: URDF、FK 与 End
 titleTemplate: '%s · 位姿与 URDF 入门'
 author: kscii
 class: cover-business
 info: |
   面向数采训练场团队开发人员的内部技术科普。
-  阅读版：按 URDF、End、FK 三个模块组织，使用真实 URDF 片段、H5 截图和代码讲解。
+  阅读版：按 URDF、FK、End 三个模块组织，使用真实 URDF 片段、H5 截图和代码讲解。
 colorSchema: dark
 transition: fade-out
 exportFilename: pose-urdf-intro
 mdc: true
 ---
 
-<div class="doc-series">URDF · END · FK</div>
+<div class="doc-series">URDF · FK · END</div>
 
-# URDF、End 与 FK
+# URDF、FK 与 End
 
 <div class="cover-summary">
 从 A2D 的机器人结构文件、H5 中的关节数据和 End 结果出发，说明如何计算、理解和检查末端位姿。
@@ -24,6 +24,26 @@ mdc: true
 <!--
 urdf是基础框架，end是目标数据，fk是方法，是实现从现有框架到目标数据的数学工具
 -->
+
+<div class="stage-flow cover-flow">
+  <div class="stage-node stage-input is-active">
+    <span>INPUT</span>
+    <strong>URDF + joint q</strong>
+    <small>静态框架 + 当前状态</small>
+  </div>
+  <b>→</b>
+  <div class="stage-node stage-method is-active">
+    <span>METHOD</span>
+    <strong>FK</strong>
+    <small>沿运动链累积变换</small>
+  </div>
+  <b>→</b>
+  <div class="stage-node stage-output is-active">
+    <span>OUTPUT</span>
+    <strong>End Pose</strong>
+    <small>position + orientation</small>
+  </div>
+</div>
 
 ---
 class: module-divider
@@ -35,6 +55,14 @@ class: module-divider
 
 <div class="module-summary">
 URDF 回答“机器人结构是什么”：有哪些 link，joint 如何连接，每个 joint 的固定安装位置、旋转轴和运动类型是什么。
+</div>
+
+<div class="stage-flow divider-flow">
+  <div class="stage-node stage-input is-active"><span>INPUT</span><strong>URDF + joint q</strong></div>
+  <b>→</b>
+  <div class="stage-node stage-method"><span>METHOD</span><strong>FK</strong></div>
+  <b>→</b>
+  <div class="stage-node stage-output"><span>OUTPUT</span><strong>End Pose</strong></div>
 </div>
 
 ---
@@ -50,15 +78,22 @@ class: compact-business a2d-full-structure-slide
 
 ## 先看整体，再看代码
 
-URDF 的主体结构可以理解为不断重复的：
+**URDF（Unified Robot Description Format）** 是 ROS 生态中描述机器人模型的 XML 格式。它把机器人拆成两类核心元素：
+
+| 元素 | 直觉 | 在结构中的角色 |
+|---|---|---|
+| `link` | 一个刚体部件及其坐标 frame | 树上的节点 |
+| `joint` | 连接两个 link 的关节 | 从 parent 指向 child 的边 |
+
+主体结构可以理解为不断重复的：
 
 ```text
 link → joint → link → joint → link
 ```
 
-在 A2D 中，链路从底盘的 `base_link` 出发，经过身体、机械臂安装点、左臂各级 link，最终到达手部 effector 和 `gripper_center` 这样的末端语义 frame。
+在 A2D 中，链路从底盘的 `base_link` 出发，经过身体、机械臂安装点和左臂各级 link，最终到达 `gripper_center`。
 
-<div class="takeaway"><strong>讲解顺序：</strong>先用全身图建立直觉，再回到 URDF 代码里看每个 joint 如何把 parent link 接到 child link。</div>
+<div class="takeaway"><strong>关键：</strong>link 不独立声明“自己在哪里”。它相对 parent link 的位置与朝向，由连接两者的 joint 决定。</div>
 
 </div>
 <div>
@@ -76,50 +111,219 @@ link → joint → link → joint → link
 需要单独说明什么是urdf（核心定义：机器人的“语言说明书”
 URDF (Unified Robot Description Format) 是ROS生态中描述机器人模型的标准XML文件格式。它将机器人的物理形态、连杆与关节关系转化为机器可解析的结构化数据。
 ），什么是link（刚体），什么是joint（关节）
+
+- 有关joint要特别说明一下，urdf中一个joint只能基于一个坐标轴作为轴线来运动。所以在urdf中如果想表达一个两个部件之间的关节可以朝多个方向旋转（多自由度），就需要在这两个link之间设定两对坐标偏移为0的joint和link. 以a2d的肩膀关节为例，这里就是2自由度，因此这里在urdf中定义了两个joint, 它们之间的距离为0, 完全重合。
 -->
 
 ---
-class: lecture-slide urdf-code-slide
+class: lecture-slide urdf-pair-overview-slide
 ---
 
-<div class="doc-section">01 · URDF 基本结构</div>
+<div class="doc-section">01 · 一组真实 Link + Joint</div>
 
-# URDF：用 Link 和 Joint 描述机器人
+# 一段 URDF，如何同时读 Link 与 Joint
 
-<div class="doc-columns code-wide">
+<div class="doc-columns urdf-overview-columns">
 <div>
 
 ```xml
-<!-- A2D.urdf -->
-<!-- 固定安装：躯干上的机械臂基座 -->
-<joint name="joint_left_arm_mount" type="fixed">
-  <origin xyz="0 0.025 0" rpy="-1.5708 0 0"/>
-  <parent link="link-arm"/>
-  <child link="base_link_l"/>
-</joint>
+<!-- 教学摘录；完整 link 子字段见后页 -->
+<link name="Link5_l" />
 
-<!-- 可动关节：左臂第 6 轴 -->
+<link name="Link6_l">
+  <inertial><!-- origin / mass / inertia --></inertial>
+  <visual><!-- origin / geometry / material --></visual>
+  <collision><!-- origin / geometry --></collision>
+</link>
+
 <joint name="left_arm_joint6" type="revolute">
-  <origin xyz="0 0 0" rpy="-1.5708 0 3.1416"/>
-  <parent link="Link5_l"/>
-  <child link="Link6_l"/>
-  <axis xyz="0 0 -1"/>
+  <origin xyz="0 0 0"
+          rpy="-1.5708 0 3.1416" />
+  <parent link="Link5_l" />
+  <child link="Link6_l" />
+  <axis xyz="0 0 -1" />
+  <limit lower="-2.35619449" upper="2.35619449"
+         effort="30" velocity="3.14" />
 </joint>
 ```
 
 </div>
 <div>
 
-## 读代码时先抓四件事
+## 先认八个核心字段，再逐页展开
+
+<div class="urdf-read-cards">
+  <div>
+    <span class="card-kicker">1 · LINK <em>第 5–6 页详解</em></span>
+    <strong>描述 link 自身</strong>
+    <ul class="field-map">
+      <li><code>inertial</code>：质量、质心与惯性等物理属性</li>
+      <li><code>visual</code>：机器人显示出来的外观</li>
+      <li><code>collision</code>：用于碰撞检测的几何模型</li>
+    </ul>
+  </div>
+  <div>
+    <span class="card-kicker">2 · JOINT <em>第 7 页详解</em></span>
+    <strong>描述连接、安装与运动约束</strong>
+    <ul class="field-map">
+      <li><code>origin</code>：joint 相对 parent link 的固定安装位姿</li>
+      <li><code>parent / child</code>：连接哪两个 link，以及连接方向</li>
+      <li><code>axis</code>：关节旋转或平移的运动轴</li>
+      <li><code>limit</code>：运动范围、速度与力矩等约束</li>
+    </ul>
+  </div>
+</div>
+
+</div>
+</div>
+
+---
+class: lecture-slide link-inertial-slide
+---
+
+<div class="doc-section">02 · Link 的惯性字段</div>
+
+# `inertial`：质量、质心与惯性张量
+
+<div class="doc-columns fk-output-columns">
+<div class="fk-output-code">
+
+```xml
+<link name="Link6_l">
+  <inertial>
+    <origin
+      xyz="2.2696E-06 -0.10227 -0.0029117"
+      rpy="0 0 0" />
+    <mass value="0.17825" />
+    <inertia
+      ixx="0.00013761"
+      ixy="5.1473E-09"
+      ixz="6.9927E-09"
+      iyy="8.0777E-05"
+      iyz="2.0192E-05"
+      izz="0.00012814" />
+  </inertial>
+  <!-- visual / collision 见下一页 -->
+</link>
+```
+
+</div>
+<div>
+
+| 字段 | 含义 | 常用单位 |
+|---|---|---|
+| `link name` | link 的唯一名称，也对应 frame 名 | — |
+| `inertial/origin xyz` | 质心相对 link frame 的位置 | m |
+| `inertial/origin rpy` | 惯性参考系相对 link frame 的姿态 | rad |
+| `mass value` | link 的质量 | kg |
+| `ixx...izz` | 3×3 对称惯性张量的 6 个独立分量 | kg·m² |
+
+```text
+I = [[ixx, ixy, ixz],
+     [ixy, iyy, iyz],
+     [ixz, iyz, izz]]
+```
+
+<div class="scope-note"><strong>边界：</strong>这些字段用于动力学和物理仿真。只计算几何位姿的 FK 不读取质量或惯性张量。</div>
+
+</div>
+</div>
+
+---
+class: lecture-slide link-geometry-slide
+---
+
+<div class="doc-section">03 · Link 的可视与碰撞字段</div>
+
+# `visual` 与 `collision`：同一 link 的两套几何语义
+
+<div class="doc-columns equal">
+<div>
+
+```xml
+<visual>
+  <origin xyz="0 0 0" rpy="0 0 0" />
+  <geometry>
+    <mesh filename="./meshes/Link6_l.STL" />
+  </geometry>
+  <material name="">
+    <color rgba="0.75294 0.75294 0.75294 1" />
+  </material>
+</visual>
+```
 
 | 字段 | 含义 |
 |---|---|
-| `parent / child` | 这条边从哪个 link 指向哪个 link |
-| `origin xyz/rpy` | 零位姿下 child joint frame 相对 parent link 的固定变换 |
-| `type` | joint 是 fixed、revolute、continuous 还是 prismatic |
-| `axis` | revolute 的旋转轴或 prismatic 的平移轴 |
+| `origin` | visual 几何体相对 link frame 的变换 |
+| `geometry/mesh` | 要加载的网格文件 |
+| `material/color rgba` | 红、绿、蓝、透明度 |
 
-`fixed` joint 没有运行时关节值，但它的 `origin` 仍然是结构的一部分；`revolute` joint 的当前角度来自 H5 / rosbag 中的 joint position。
+</div>
+<div>
+
+```xml
+<collision>
+  <origin xyz="0 0 0" rpy="0 0 0" />
+  <geometry>
+    <mesh filename="./meshes/Link6_l.STL" />
+  </geometry>
+</collision>
+```
+
+| 字段 | 含义 |
+|---|---|
+| `origin` | collision 几何体相对 link frame 的变换 |
+| `geometry/mesh` | 碰撞检测使用的网格文件 |
+
+<div class="takeaway"><strong>A2D 当前情况：</strong>两者引用同一个 STL；职责仍不同。实际项目也常让 collision 使用更简单的几何体以降低计算量。</div>
+
+</div>
+</div>
+
+---
+class: lecture-slide joint-fields-slide
+---
+
+<div class="doc-section">04 · Joint 的完整字段</div>
+
+# `left_arm_joint6`：结构、运动方式与约束
+
+<div class="doc-columns code-wide">
+<div>
+
+```xml
+<joint name="left_arm_joint6" type="revolute">
+  <origin xyz="0 0 0"
+          rpy="-1.5708 0 3.1416" />
+  <parent link="Link5_l" />
+  <child link="Link6_l" />
+  <axis xyz="0 0 -1" />
+  <limit
+    lower="-2.35619449"
+    upper="2.35619449"
+    effort="30"
+    velocity="3.14" />
+</joint>
+```
+
+</div>
+<div>
+
+| 字段 | 含义 |
+|---|---|
+| `name` | joint 的唯一名称，也是关节数据映射键 |
+| `type` | 此处为有限位旋转关节 `revolute` |
+| `origin` | joint zero frame 相对 `Link5_l` 的固定安装变换 |
+| `parent / child` | 连接方向：`Link5_l → Link6_l` |
+| `axis` | 在 joint frame 中表达的运动轴，此处为负 Z |
+| `lower / upper` | 位置范围；旋转关节单位为 rad |
+| `effort / velocity` | revolute 常用 N·m / rad·s⁻¹，prismatic 常用 N / m·s⁻¹；不直接进入基础 FK |
+
+## 常见 type
+
+| `fixed` | `revolute` | `continuous` | `prismatic` |
+|---|---|---|---|
+| 固定 | 有限旋转 | 连续旋转 | 有限平移 |
 
 </div>
 </div>
@@ -128,9 +332,9 @@ class: lecture-slide urdf-code-slide
 class: lecture-slide urdf-origin-slide
 ---
 
-<div class="doc-section">02 · Origin 与运行时 q</div>
+<div class="doc-section">05 · 静态 URDF 与动态 q</div>
 
-# `origin` 是安装位置，不是当前关节角
+# URDF 定义“怎么动”，关节值决定“动了多少”
 
 <div class="doc-columns equal">
 <div>
@@ -147,10 +351,9 @@ class: lecture-slide urdf-origin-slide
 
 ```python
 # 固定安装变换 + 当前关节旋转
-T_Link5_Link6 = T_origin @ rotation_transform(
-    axis=[0, 0, -1],
-    theta=q6,
-)
+T_motion_6 = rotation_transform(
+    axis=[0, 0, -1], theta=q6)
+T_Link5_l_Link6_l = T_origin_6 @ T_motion_6
 ```
 
 </div>
@@ -171,10 +374,64 @@ T_Link5_Link6 = T_origin @ rotation_transform(
 </div>
 
 ---
+class: lecture-slide h5-joint-input-slide
+---
+
+<div class="doc-section">06 · 静态结构与动态数据会合</div>
+
+# 通过 joint mapping，把 URDF 与当前帧 q 接起来
+
+<div class="doc-columns code-wide">
+<div>
+
+```yaml
+# 资料文档.md 中的 H5 通道示例
+h5:
+  position_dataset: position
+
+mappings:
+  - group: arm
+    h5: joints/state/arm
+    idx: 5
+    name: idx18_left_arm_joint6
+    transform: {type: direct, clamp: true}
+    targets: [idx18_left_arm_joint6]
+```
+
+<div class="scope-note"><code>idx: 5</code> 是零基索引，即 <code>position</code> 的第 6 列；A2D URDF 中对应的规范 joint 名为 <code>left_arm_joint6</code>。</div>
+
+</div>
+<div>
+
+```python
+# t 表示当前采样时刻
+q6 = h5["joints/state/arm/position"][t, 5]
+
+# 经过构型映射，对接 A2D.urdf 的 joint name
+joint_values["left_arm_joint6"] = q6
+T_motion_6 = rotation_transform(
+    axis=[0, 0, -1], theta=q6)
+```
+
+| 输入 | 提供什么 | 是否随 t 变化 |
+|---|---|---|
+| `A2D.urdf` | chain、origin、axis、type | 否 |
+| H5 `position[t, 5]` | 当前关节角 `q6` | 是 |
+
+- revolute / continuous 的 `q` 使用 rad。
+- prismatic 的 `q` 使用 m。
+- URDF 定义“怎么动”，H5 记录“这一帧动了多少”。
+
+<div class="takeaway"><strong>输入已经齐了：</strong><code>URDF 静态结构 + joint_values[t]</code>。FK 会使用这些输入计算 End Pose。</div>
+
+</div>
+</div>
+
+---
 class: lecture-slide urdf-chain-slide
 ---
 
-<div class="doc-section">03 · Chain 与语义 Frame</div>
+<div class="doc-section">07 · Chain 与语义 Frame</div>
 
 # 从 URDF Tree 里取出一条 End Chain
 
@@ -222,7 +479,7 @@ base_link
 class: lecture-slide urdf-tf-half-slide
 ---
 
-<div class="doc-section">04 · URDF 与 TF</div>
+<div class="doc-section">08 · URDF 与 TF</div>
 
 # URDF 是静态定义，TF 是运行时结果
 
@@ -239,6 +496,8 @@ class: lecture-slide urdf-tf-half-slide
 | 用途 | 提供结构约束 | 展示某一时刻的空间关系 |
 
 `left_arm_joint6` 在 URDF 中只说明结构；TF message 中出现的 translation 和 rotation 是某个时间点计算后的结果。
+
+<div class="handoff"><strong>URDF 模块交接：</strong>静态结构与当前关节值已经齐备；下一步沿 base→end chain 开始 FK 计算。</div>
 
 </div>
 <div>
@@ -258,10 +517,402 @@ class: module-divider
 
 <div class="module-kicker">MODULE 02</div>
 
+# FK
+
+<div class="module-summary">
+FK 回答“给定一组关节值，末端在哪里”：它把关节空间中的角度或位移，映射成笛卡尔空间中的 End Pose。
+</div>
+
+<div class="stage-flow divider-flow">
+  <div class="stage-node stage-input"><span>INPUT</span><strong>URDF + joint q</strong></div>
+  <b>→</b>
+  <div class="stage-node stage-method is-active"><span>METHOD</span><strong>FK</strong></div>
+  <b>→</b>
+  <div class="stage-node stage-output"><span>OUTPUT</span><strong>End Pose</strong></div>
+</div>
+
+---
+class: lecture-slide kinematics-slide
+---
+
+<div class="doc-section">01 · 机器人运动学</div>
+
+# 什么是机器人运动学？
+
+<div class="definition"><strong>通用定义</strong>　机器人运动学研究机器人几何结构、关节运动与末端执行器在空间中的位置和姿态之间的关系，而不考虑引起运动的力或力矩。</div>
+
+<div class="doc-columns equal">
+<div>
+
+## 两个空间
+
+| 空间 | 在数据中的样子 |
+|---|---|
+| 关节空间 Joint Space | H5 / rosbag 中的关节角度或位移 |
+| 笛卡尔空间 Cartesian Space | End 的 `position` 和 `orientation` |
+
+正运动学就是从关节空间到笛卡尔空间的映射：给机器人一组关节状态，计算它的“手”会伸到哪里、朝向哪里。
+
+</div>
+<div>
+
+## 两个基本问题
+
+| 对比维度 | 正运动学 FK | 逆运动学 IK |
+|---|---|---|
+| 输入 | 各个关节变量 | 末端目标位姿 |
+| 输出 | 末端位置和姿态 | 各个关节变量 |
+| 复杂度 | 按链路累乘，相对直接 | 可能无解、多解或无穷解 |
+| 用途 | 状态计算、轨迹仿真、数据校验 | 路径规划、任务控制 |
+
+</div>
+</div>
+
+<div class="takeaway"><strong>本文主线：</strong><code>joint_values + URDF chain → End Pose</code>。IK 只作为对比概念，不展开求解算法。</div>
+
+<!--
+- 正运动学fk就是使用关节角度值和urdf的定义求当前关节角会达到的末端位姿, 正运动学是可以求出唯一解的
+- 逆运动学ik就是使用末端位姿和urdf的定义求可以达到当前末端位姿需要的每个关节的关节角. 这里没有唯一解
+- 我们这里主要使用的是正运动学
+-->
+
+---
+class: lecture-slide matrix-slide code-matrix-slide
+---
+
+<div class="doc-section">02 · 齐次变换</div>
+
+# 齐次变换矩阵：用代码读懂一个 4×4
+
+<div class="notation-rule"><code>T_A_B</code> 统一表示“<strong>B frame 在 A frame 下的位姿</strong>”。因此可组合为 <code>T_A_C = T_A_B @ T_B_C</code>；变量中的 <code>base</code> 是 <code>base_link</code> 的简称。</div>
+
+<div class="doc-columns code-wide">
+<div>
+
+```python
+T = np.array([
+    # 左上 3x3 是旋转，右侧一列是位置
+    [r00, r01, r02, px],
+    [r10, r11, r12, py],
+    [r20, r21, r22, pz],
+    [0.0, 0.0, 0.0, 1.0],
+])
+```
+
+| 区域 | 代码切片 | 含义 |
+|---|---|---|
+| 左上 3×3 | `T[:3, :3]` | 旋转矩阵 `R`，表示当前 frame 的朝向 |
+| 右侧 3×1 | `T[:3, 3]` | 坐标 `p`，表示当前 frame 原点在哪里 |
+| 最后一行 | `T[3, :]` | 齐次矩阵的固定补位 |
+
+</div>
+<div>
+
+## 为什么用 `@`
+
+```python
+T_base_Link6_l = (
+    T_base_Link5_l @ T_Link5_l_Link6_l)
+T_base_gripper_center = (
+    T_base_Link6_l @ T_Link6_l_gripper_center)
+
+position = T_base_gripper_center[:3, 3]
+rotation = T_base_gripper_center[:3, :3]
+orientation_xyzw = rotation_matrix_to_quaternion(rotation)
+```
+
+矩阵乘法的顺序表达了 frame 的方向：左边是已经累计到 base 的结果，右边是下一段 parent→child 变换。
+
+</div>
+</div>
+
+<!--
+这里讲一下fk的计算方式, 首先对于urdf中两个link之间的变换关系, 可以使用一个齐次变换矩阵来表达, 结构是一个4*4的矩阵
+- 矩阵中的左上角的3*3其实就是旋转矩阵, 可以从我们h5里面的四元数或者rpy值来转换得到
+- 右侧的1*3的部分就是坐标, 也就是xyz
+
+- 这些变换矩阵可以直接使用矩阵成分相乘, 其中成分的左侧就是过去从baselink开始一级一级乘上来的总的变换, 然后右边是现在要乘上去的最新的一级变换(可以参考这里的代码)
+-->
+
+---
+class: lecture-slide dh-code-slide
+---
+
+<div class="doc-section">03 · DH 参数</div>
+
+# DH 与 URDF：两种建模语言，同一种连乘思想
+
+<div class="doc-columns code-wide">
+<div>
+
+Denavit-Hartenberg 参数法用四个参数描述相邻连杆坐标系之间的关系。
+
+| DH 参数 | 含义 | 描述 |
+|---|---|---|
+| `a` | 连杆长度 | 两个相邻关节轴线之间的公法线距离 |
+| `alpha` | 连杆扭角 | 两个相邻关节轴线之间的夹角 |
+| `d` | 连杆偏移 | 沿关节轴线的距离 |
+| `theta` | 关节角度 | 绕关节轴线的旋转角度 |
+
+DH 和 URDF-FK 的共同点：每一段生成一个 4×4 变换矩阵，然后按顺序连乘。区别是每一段的参数从哪里来。
+
+</div>
+<div>
+
+```python
+import numpy as np
+
+def dh_transform(a, alpha, d, theta):
+    # 先缓存三角函数，矩阵里会重复使用
+    ct = np.cos(theta)
+    st = np.sin(theta)
+    ca = np.cos(alpha)
+    sa = np.sin(alpha)
+
+    return np.array([
+        [ct, -st * ca,  st * sa, a * ct],
+        [st,  ct * ca, -ct * sa, a * st],
+        [0,        sa,       ca,      d],
+        [0,         0,        0,      1],
+    ])
+
+T_base_end = T1 @ T2 @ T3
+```
+
+</div>
+</div>
+
+<div class="takeaway"><strong>本教程的取舍：</strong>DH 用来建立“逐段建模再连乘”的直觉；A2D 主线仍直接解析 URDF，不把现有模型重新改写成 DH 参数表。</div>
+
+<!--
+这里是构造一个变换矩阵的方法, 实际上这些参数都可以使用urdf中的定义计算获取
+-->
+
+---
+class: lecture-slide urdf-transform-example-slide
+---
+
+<div class="doc-section">04 · 可动关节的 Motion</div>
+
+# 由当前关节值 q 构造 motion，再与 origin 相乘
+
+<div class="doc-columns code-wide">
+<div>
+
+回到贯穿示例 `left_arm_joint6`：
+
+| 变换 | 来源 | 含义 |
+|---|---|---|
+| `T_origin_6` | URDF `origin` | 零位时的固定安装变换 |
+| `T_motion_6(q6)` | `revolute + axis + q6` | 当前帧绕负 Z 轴的旋转 |
+
+```python
+q6 = joint_values["left_arm_joint6"]
+
+T_origin_6 = origin_transform(
+    xyz=[0, 0, 0],
+    rpy=[-1.5708, 0, 3.1416],
+)
+T_motion_6 = rotation_transform(
+    axis=[0, 0, -1], theta=q6)
+
+T_Link5_l_Link6_l = T_origin_6 @ T_motion_6
+```
+
+</div>
+<div>
+
+```python
+# 把这一段接到前面已经累计的结果后面
+T_base_Link6_l = (
+    T_base_Link5_l @ T_Link5_l_Link6_l)
+```
+
+## 其他 type 只改变 `T_motion`
+
+| type | 当前运动变换 |
+|---|---|
+| `fixed` | `I`，没有运行时 q |
+| `revolute / continuous` | `R(axis, q)`，q 单位 rad |
+| `prismatic` | `Trans(axis × q)`，q 单位 m |
+
+<div class="takeaway"><strong>顺序固定：</strong>先应用安装变换，再应用 joint 自己的运动：<code>T_parent_child = T_origin @ T_motion(q)</code>。</div>
+
+</div>
+</div>
+
+<!--
+- 讲一下一个可动关节的自由度变换其实包含两部分，也就是origin变换和motion变换
+- origin变换就是urdf中定义的当前link相比上一个link的固定变换，这个固定变换使用urdf中的origin中的xyz和rpy字段。这个变换是固定不变的
+- motion变换代表的就是这个关节本身的旋转或者平移，会随着关节角或者平移距离的变化而变化。可以使用urdf中定义的关节类型信息，以及h5里面的关节角信息或者平移量信息来计算。构造一个随着时间变化的变换矩阵
+- 对于每个非固定关节，都需要在origin的变换矩阵的基础上乘上motion的变换矩阵。具体如图所示
+-->
+
+---
+class: lecture-slide fk-tree-slide
+---
+
+<div class="doc-section">05 · FK Tree</div>
+
+# FK Tree：从 base_link 一层一层走到 End
+
+<div class="tf-tree-full-image">
+  <img src="./assets/source/a2d-tf-tree-full.png" alt="A2D TF tree full">
+</div>
+
+<div class="takeaway"><strong>计算方向：</strong>从 <code>base_link</code> 出发，按 parent → child 的路径一段一段乘到 <code>gripper_center</code>，得到 <code>T_base_gripper_center</code>。</div>
+
+<!--
+- 使用fk tree讲解，实际在人形机器人上，link和link之间通常是一个树型关系
+- 对于每个要被计算出来的end pose, 都需要按照这里的顺序从baselink开始一层一层进行矩阵乘法来乘上去。最终得到的就是在baselink坐标系下的end的 pose
+-->
+
+---
+class: lecture-slide fk-algorithm-slide
+---
+
+<div class="doc-section">06 · FK 算法</div>
+
+# 沿 base → end 的运动链累积变换
+
+<div class="doc-columns code-wide">
+<div>
+
+```text
+base_link
+→ ...
+→ Link6_l
+→ Link7_l
+→ left_base_link
+→ gripper_center                              
+```
+
+## 计算步骤
+
+1. 从单位矩阵 `np.eye(4)` 开始。
+2. 按 base→end 的有序 chain 遍历 joint。
+3. 为每个 joint 生成 `T_parent_child`。
+4. 每步执行 `T_base_current = T_base_current @ T_parent_child`。
+5. 返回最终的 `T_base_end`。
+
+</div>
+<div>
+
+```python
+def forward_kinematics(chain, joint_values):
+    T_base_current = np.eye(4)
+    for joint in chain:
+        T_parent_child = origin_transform(
+            joint.origin_xyz, joint.origin_rpy)
+
+        if joint.type in {"revolute", "continuous"}:
+            q = joint_values[joint.name]
+            T_parent_child = T_parent_child @ rotation_transform(
+                joint.axis, q)
+        elif joint.type == "prismatic":
+            q = joint_values[joint.name]
+            T_parent_child = T_parent_child @ translation_transform(
+                joint.axis * q)
+
+        T_base_current = T_base_current @ T_parent_child
+
+    return T_base_current  # T_base_end
+```
+
+</div>
+</div>
+
+<!--
+- 这里讲一下fk的实际算法, 核心就是从base开始, 沿着urdf里面的chain一段一段往end乘
+- 每一段joint都会先生成一个parent到child的变换矩阵, 这个矩阵里面同时包含旋转和平移两种情况
+- 可以结合前面那张tf tree图讲, 从base_link开始, 顺着树上的parent child关系一层一层往目标end走
+
+- 旋转的计算方法比较简单, 如果是固定安装的旋转, 就用urdf里面origin的rpy转成旋转矩阵
+- 如果是revolute或者continuous关节, 就拿当前这一帧的关节角q, 绕urdf里面axis写的轴转q这么多
+- 所以旋转不是直接加角度, 而是每一段都先变成旋转矩阵, 然后跟前面累计的旋转矩阵相乘
+
+- 平移的计算方法也比较简单, 固定安装的平移就是urdf里面origin的xyz
+- 如果是prismatic关节, 就沿着axis方向移动q这么多, 也就是axis乘上q
+- 这里需要注意, 本地坐标系里的平移会被前面已经累计出来的旋转带着一起转过去, 所以不能只把所有xyz简单相加
+
+- 最后乘完以后, T右边这一列就是end的位置, T左上角3*3就是end的朝向
+- 这两个合起来, 就是end在base_link坐标系下面的pose
+- 最后再提醒一下, 真正容易错的是joint名称和顺序, 单位和正负号, 还有end和frame是不是同一个定义
+-->
+
+---
+class: lecture-slide fk-output-slide
+---
+
+<div class="doc-section">07 · 从矩阵得到几何结果</div>
+
+# `T_base_gripper_center` → position + orientation
+
+<div class="doc-columns code-wide">
+<div>
+
+```python
+t = sample_index
+joint_values = read_joint_values(h5, t)
+
+T_base_gripper_center = forward_kinematics(
+    chain=urdf.chain(
+        "base_link", "gripper_center"),
+joint_values=joint_values,
+)
+
+position = T_base_gripper_center[:3, 3]
+orientation_xyzw = rotation_matrix_to_quaternion(
+T_base_gripper_center[:3, :3])
+```
+
+</div>
+<div class="fk-output-summary">
+
+<div class="fk-output-result-card">
+
+| FK 已确定 | 来源 |
+|---|---|
+| `position` | 最终矩阵右侧 3×1，单位 m |
+| `orientation` | 最终矩阵左上 3×3 转 quaternion `xyzw` |
+| 起点与终点 | chain 为 `base_link → gripper_center` |
+| 采样索引 | 当前输入使用 `joint_values[t]` |
+
+</div>
+<div class="fk-output-contract-card">
+
+## 还不是完整的数据契约
+
+FK 已经给出几何结果，但还需要把以下语义显式写入 End 数据：
+
+- `reference_link / reference_frame`
+- `timestamp`
+- Action / State、Raw / Verify、TCP 等分类                                  
+
+</div>
+</div>
+</div>
+
+<div class="takeaway fk-output-handoff"><strong>FK 模块交接：</strong>数学计算已经完成；下一模块把 position 和 orientation 组织成一条可保存、可比较的 End Pose。</div>
+
+---
+class: module-divider
+---
+
+<div class="module-kicker">MODULE 03</div>
+
 # End
 
 <div class="module-summary">
-End 回答“描述哪个末端点、相对哪个坐标系、在什么时刻、用什么格式表达”。
+上一模块已经由 FK 得到 position 和 orientation；End 继续回答“描述哪个末端点、相对哪个坐标系、在什么时刻、用什么格式表达”。
+</div>
+
+<div class="stage-flow divider-flow">
+  <div class="stage-node stage-input"><span>INPUT</span><strong>URDF + joint q</strong></div>
+  <b>→</b>
+  <div class="stage-node stage-method"><span>METHOD</span><strong>FK</strong></div>
+  <b>→</b>
+  <div class="stage-node stage-output is-active"><span>OUTPUT</span><strong>End Pose</strong></div>
 </div>
 
 <!--
@@ -443,7 +1094,7 @@ class: compact-business end-types-slide
 | Action End | 控制指令对应的目标末端位姿 |
 | State End | 实际关节反馈对应的末端位姿 |
 | Raw End | 厂商或外部系统直接给出的末端位姿 |
-| Verify End | 用 joint values + URDF/FK 计算出的末端位姿 |
+| Verify End | 上一模块已经用 joint values + URDF/FK 计算出的末端位姿 |
 | TCP End | 在 reference end 基础上叠加固定标定偏移后的工具中心点 |
 
 这些名字不是五个物理末端，而是从“数据来源、时间语义、endpoint 语义”三个维度组合出来的结果。
@@ -477,7 +1128,7 @@ class: compact-business tcp-end-slide
 <div>
 
 ```python
-# 参考末端：由 FK 计算
+# 参考末端：上一模块已由 FK 计算
 T_base_reference = forward_kinematics(
     chain, state_joint_values)
 
@@ -496,6 +1147,8 @@ T_base_tcp = (
 
 TCP 的误差里可能包含工具安装、夹爪几何和标定偏差，不能直接全部解释为 FK 错误。
 
+<div class="handoff"><strong>End 模块收束：</strong>几何结果已经补齐 link、frame、timestamp 和 endpoint 语义，可以用于保存、比较和下游任务。</div>
+
 </div>
 <div>
 
@@ -512,325 +1165,38 @@ tcp end就是 tool control end, 代表夹爪实际抓握时和物体接触的位
 -->
 
 ---
-class: module-divider
+class: conclusion-slide
 ---
 
-<div class="module-kicker">MODULE 03</div>
+<div class="doc-section">SUMMARY · 完整逻辑链</div>
 
-# FK
+# 从已有机器人数据，到可使用的 End Pose
 
-<div class="module-summary">
-FK 回答“给定一组关节值，末端在哪里”：它把关节空间中的角度或位移，映射成笛卡尔空间中的 End Pose。
+<div class="stage-flow final-flow">
+  <div class="stage-node stage-input is-active">
+    <span>INPUT</span>
+    <strong>URDF + joint q</strong>
+    <small>结构来自 A2D.urdf<br>状态来自 H5 当前帧</small>
+  </div>
+  <b>→</b>
+  <div class="stage-node stage-method is-active">
+    <span>METHOD</span>
+    <strong>FK</strong>
+    <small>逐 joint 构造变换<br>沿 base → end 连乘</small>
+  </div>
+  <b>→</b>
+  <div class="stage-node stage-output is-active">
+    <span>OUTPUT</span>
+    <strong>End Pose</strong>
+    <small>明确 link、frame、时间<br>position + orientation</small>
+  </div>
 </div>
 
----
-class: lecture-slide kinematics-slide
----
-
-<div class="doc-section">01 · 机器人运动学</div>
-
-# 什么是机器人运动学？
-
-<div class="definition"><strong>通用定义</strong>　机器人运动学研究机器人几何结构、关节运动与末端执行器在空间中的位置和姿态之间的关系，而不考虑引起运动的力或力矩。</div>
-
-<div class="doc-columns equal">
-<div>
-
-## 两个空间
-
-| 空间 | 在数据中的样子 |
-|---|---|
-| 关节空间 Joint Space | H5 / rosbag 中的关节角度或位移 |
-| 笛卡尔空间 Cartesian Space | End 的 `position` 和 `orientation` |
-
-正运动学就是从关节空间到笛卡尔空间的映射：给机器人一组关节状态，计算它的“手”会伸到哪里、朝向哪里。
-
-</div>
-<div>
-
-## 两个基本问题
-
-| 对比维度 | 正运动学 FK | 逆运动学 IK |
-|---|---|---|
-| 输入 | 各个关节变量 | 末端目标位姿 |
-| 输出 | 末端位置和姿态 | 各个关节变量 |
-| 复杂度 | 按链路累乘，相对直接 | 可能无解、多解或无穷解 |
-| 用途 | 状态计算、轨迹仿真、数据校验 | 路径规划、任务控制 |
-
-</div>
+<div class="summary-statements">
+  <div><strong>URDF 是基础框架</strong><span>定义 link、joint、origin、axis 与 type。</span></div>
+  <div><strong>关节角是当前状态</strong><span>同一套结构在每个时刻对应不同的 q。</span></div>
+  <div><strong>FK 是数学工具</strong><span>把静态结构和动态 q 变成 4×4 累积变换。</span></div>
+  <div><strong>End Pose 是目标数据</strong><span>最终用于保存、比较、验证和下游任务。</span></div>
 </div>
 
-<div class="takeaway"><strong>本文主线：</strong><code>joint_values + URDF chain → End Pose</code>。IK 只作为对比概念，不展开求解算法。</div>
-
-<!--
-- 正运动学fk就是使用关节角度值和urdf的定义求当前关节角会达到的末端位姿, 正运动学是可以求出唯一解的
-- 逆运动学ik就是使用末端位姿和urdf的定义求可以达到当前末端位姿需要的每个关节的关节角. 这里没有唯一解
-- 我们这里主要使用的是正运动学
--->
-
----
-class: lecture-slide matrix-slide code-matrix-slide
----
-
-<div class="doc-section">02 · 齐次变换</div>
-
-# 齐次变换矩阵：用代码读懂一个 4×4
-
-<div class="doc-columns code-wide">
-<div>
-
-```python
-T = np.array([
-    # 左上 3x3 是旋转，右侧一列是位置
-    [r00, r01, r02, px],
-    [r10, r11, r12, py],
-    [r20, r21, r22, pz],
-    [0.0, 0.0, 0.0, 1.0],
-])
-```
-
-| 区域 | 代码切片 | 含义 |
-|---|---|---|
-| 左上 3×3 | `T[:3, :3]` | 旋转矩阵 `R`，表示当前 frame 的朝向 |
-| 右侧 3×1 | `T[:3, 3]` | 坐标 `p`，表示当前 frame 原点在哪里 |
-| 最后一行 | `T[3, :]` | 齐次矩阵的固定补位 |
-
-</div>
-<div>
-
-## 为什么用 `@`
-
-```python
-T_base_elbow = T_base_shoulder @ T_shoulder_elbow
-T_base_wrist = T_base_elbow @ T_elbow_wrist
-T_base_end = T_base_wrist @ T_wrist_end
-
-position = T_base_end[:3, 3]
-rotation = T_base_end[:3, :3]
-orientation = matrix_to_quaternion(rotation)
-```
-
-矩阵乘法的顺序表达了 frame 的方向：左边是已经累计到 base 的结果，右边是下一段 parent→child 变换。
-
-</div>
-</div>
-
-<!--
-这里讲一下fk的计算方式, 首先对于urdf中两个link之间的变换关系, 可以使用一个齐次变换矩阵来表达, 结构是一个4*4的矩阵
-- 矩阵中的左上角的3*3其实就是旋转矩阵, 可以从我们h5里面的四元数或者rpy值来转换得到
-- 右侧的1*3的部分就是坐标, 也就是xyz
-
-- 这些变换矩阵可以直接使用矩阵成分相乘, 其中成分的左侧就是过去从baselink开始一级一级乘上来的总的变换, 然后右边是现在要乘上去的最新的一级变换(可以参考这里的代码)
--->
-
----
-class: lecture-slide dh-code-slide
----
-
-<div class="doc-section">03 · DH 参数</div>
-
-# DH 参数：标准化的建模语言
-
-<div class="doc-columns code-wide">
-<div>
-
-Denavit-Hartenberg 参数法用四个参数描述相邻连杆坐标系之间的关系。
-
-| DH 参数 | 含义 | 描述 |
-|---|---|---|
-| `a` | 连杆长度 | 两个相邻关节轴线之间的公法线距离 |
-| `alpha` | 连杆扭角 | 两个相邻关节轴线之间的夹角 |
-| `d` | 连杆偏移 | 沿关节轴线的距离 |
-| `theta` | 关节角度 | 绕关节轴线的旋转角度 |
-
-DH 和 URDF-FK 的共同点：每一段生成一个 4×4 变换矩阵，然后按顺序连乘。
-
-</div>
-<div>
-
-```python
-import numpy as np
-
-def dh_transform(a, alpha, d, theta):
-    # 先缓存三角函数，矩阵里会重复使用
-    ct = np.cos(theta)
-    st = np.sin(theta)
-    ca = np.cos(alpha)
-    sa = np.sin(alpha)
-
-    return np.array([
-        [ct, -st * ca,  st * sa, a * ct],
-        [st,  ct * ca, -ct * sa, a * st],
-        [0,        sa,       ca,      d],
-        [0,         0,        0,      1],
-    ])
-
-T_base_end = T1 @ T2 @ T3
-```
-
-</div>
-</div>
-
-<div class="takeaway"><strong>取舍：</strong>DH 很适合讲“参数表 + 变换矩阵 + 连乘”；实际处理 A2D 这类数据时，直接解析 URDF 更贴近现有文件和 TF 可视化。</div>
-
-<!--
-这里是构造一个变换矩阵的方法, 实际上这些参数都可以使用urdf中的定义计算获取
--->
-
----
-class: lecture-slide urdf-transform-example-slide
----
-
-<div class="doc-section">04 · 可动关节的 Motion</div>
-
-# 由当前关节值 q 构造 motion，再与 origin 相乘
-
-<div class="doc-columns code-wide">
-<div>
-
-对同一个可动关节，要把两层变换分开：
-
-| 变换 | 来源 | 含义 |
-|---|---|---|
-| `T_origin` | URDF `origin` | 零位时的固定安装变换 |
-| `T_motion(q)` | `type + axis + q` | 当前帧的关节运动 |
-
-右侧是两个**独立的一自由度示例**：
-
-- revolute：绕局部 Z 轴旋转 `q = 90°`
-- prismatic：沿局部 Y 轴移动 `q = 0.03m`
-
-```python
-T_parent_child = T_origin @ T_motion
-T_base_child = T_base_parent @ T_parent_child
-```
-
-</div>
-<div>
-
-```python
-# revolute: axis = [0, 0, 1], q = 90°
-T_motion_revolute = np.array([
-    [0, -1, 0, 0],
-    [1,  0, 0, 0],
-    [0,  0, 1, 0],
-    [0,  0, 0, 1],
-])
-
-# prismatic: axis = [0, 1, 0], q = 0.03m
-T_motion_prismatic = np.array([
-    [1, 0, 0, 0.00],
-    [0, 1, 0, 0.03],
-    [0, 0, 1, 0.00],
-    [0, 0, 0, 1.00],
-])
-```
-
-<div class="takeaway"><strong>关键：</strong>这里的旋转与平移是两种 joint 的 motion 示例，不是 <code>origin</code> 的 <code>rpy/xyz</code>，也不是在一个普通单自由度 joint 上同时发生。</div>
-
-</div>
-</div>
-
-<!--
-- 讲一下一个可动关节的自由度变换其实包含两部分，也就是origin变换和motion变换
-- origin变换就是urdf中定义的当前link相比上一个link的固定变换，这个固定变换使用urdf中的origin中的xyz和rpy字段。这个变换是固定不变的
-- motion变换代表的就是这个关节本身的旋转或者平移，会随着关节角或者平移距离的变化而变化。可以使用urdf中定义的关节类型信息，以及h5里面的关节角信息或者平移量信息来计算。构造一个随着时间变化的变换矩阵
-- 对于每个非固定关节，都需要在origin的变换矩阵的基础上乘上motion的变换矩阵。具体如图所示
--->
-
----
-class: lecture-slide fk-tree-slide
----
-
-<div class="doc-section">05 · FK Tree</div>
-
-# FK Tree：从 base_link 一层一层走到 End
-
-<div class="tf-tree-full-image">
-  <img src="./assets/source/a2d-tf-tree-full.png" alt="A2D TF tree full">
-</div>
-
-<div class="takeaway"><strong>计算方向：</strong>从 <code>base_link</code> 出发，按 parent → child 的路径一段一段乘到目标 end。最终矩阵表示的是 end 在 <code>base_link</code> 坐标系下的 pose。</div>
-
-<!--
-- 使用fk tree讲解，实际在人形机器人上，link和link之间通常是一个树型关系
-- 对于每个要被计算出来的end pose, 都需要按照这里的顺序从baselink开始一层一层进行矩阵乘法来乘上去。最终得到的就是在baselink坐标系下的end的 pose
--->
-
----
-class: lecture-slide fk-algorithm-slide
----
-
-<div class="doc-section">06 · FK 算法</div>
-
-# 沿 base → end 的运动链累积变换
-
-<div class="doc-columns code-wide">
-<div>
-
-```text
-base_link
-→ ...
-→ Link5_l
-→ Link6_l
-→ Link7_l
-→ gripper_center
-```
-
-## 计算步骤
-
-1. 从单位矩阵 `np.eye(4)` 开始。
-2. 按 base→end 的有序 chain 遍历 joint。
-3. 为每个 joint 生成 `T_parent_child`。
-4. 每步执行 `T = T @ T_parent_child`。
-5. 从最终 `T` 中取 position 和 orientation。
-
-</div>
-<div>
-
-```python
-def forward_kinematics(chain, joint_values):
-    # 从 base frame 开始累计
-    T = np.eye(4)
-    for joint in chain:
-        # 先应用 URDF 中的固定安装变换
-        T_parent_child = origin_transform(
-            joint.origin_xyz, joint.origin_rpy)
-        if joint.type in {"revolute", "continuous"}:
-            q = joint_values[joint.name]
-            T_parent_child = T_parent_child @ rotation_transform(
-                joint.axis, q)
-        elif joint.type == "prismatic":
-            q = joint_values[joint.name]
-            T_parent_child = T_parent_child @ translation_transform(
-                joint.axis * q)
-
-        # 累乘下一段 parent -> child
-        T = T @ T_parent_child
-
-    # 从最终矩阵取 End Pose
-    position = T[:3, 3]
-    orientation = matrix_to_quaternion(T[:3, :3])
-    return position, orientation
-```
-
-</div>
-</div>
-
-<!--
-- 这里讲一下fk的实际算法, 核心就是从base开始, 沿着urdf里面的chain一段一段往end乘
-- 每一段joint都会先生成一个parent到child的变换矩阵, 这个矩阵里面同时包含旋转和平移两种情况
-- 可以结合前面那张tf tree图讲, 从base_link开始, 顺着树上的parent child关系一层一层往目标end走
-
-- 旋转的计算方法比较简单, 如果是固定安装的旋转, 就用urdf里面origin的rpy转成旋转矩阵
-- 如果是revolute或者continuous关节, 就拿当前这一帧的关节角q, 绕urdf里面axis写的轴转q这么多
-- 所以旋转不是直接加角度, 而是每一段都先变成旋转矩阵, 然后跟前面累计的旋转矩阵相乘
-
-- 平移的计算方法也比较简单, 固定安装的平移就是urdf里面origin的xyz
-- 如果是prismatic关节, 就沿着axis方向移动q这么多, 也就是axis乘上q
-- 这里需要注意, 本地坐标系里的平移会被前面已经累计出来的旋转带着一起转过去, 所以不能只把所有xyz简单相加
-
-- 最后乘完以后, T右边这一列就是end的位置, T左上角3*3就是end的朝向
-- 这两个合起来, 就是end在base_link坐标系下面的pose
-- 最后再提醒一下, 真正容易错的是joint名称和顺序, 单位和正负号, 还有end和frame是不是同一个定义
--->
+<div class="handoff final-handoff"><strong>一句话复述：</strong>从 URDF 取结构、从 H5 取当前关节角，用 FK 计算出指定 frame 下的 End Pose。</div>
