@@ -78,10 +78,6 @@
   line-height: 1.32;
 }
 
-.slidev-layout pre span {
-  color: inherit !important;
-}
-
 .slidev-layout table {
   width: 100%;
   border-collapse: collapse;
@@ -115,6 +111,19 @@
 
 .slidev-layout .katex { font-size: 1.02em; }
 
+.slidev-layout .hi-yellow {
+  padding: 0.06em 0.22em;
+  color: #141006;
+  background: #f7d84d;
+  border-radius: 2px;
+  font-weight: 750;
+}
+
+.slidev-layout .hi-red {
+  color: #ff7373;
+  font-weight: 750;
+}
+
 .doc-section {
   margin-bottom: 8px;
   color: var(--brand);
@@ -132,6 +141,7 @@
 
 .doc-columns.equal { grid-template-columns: 1fr 1fr; }
 .doc-columns.code-wide { grid-template-columns: 0.42fr 0.58fr; }
+.doc-columns.visual-wide { grid-template-columns: 0.46fr 0.54fr; }
 
 .definition,
 .platform-rule,
@@ -277,6 +287,218 @@
 .compact-business h2 { font-size: 17px; }
 .compact-business table { font-size: 12.5px; }
 
+/* Module divider */
+.module-divider {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background:
+    linear-gradient(90deg, rgba(98, 181, 243, .14), transparent 58%),
+    var(--paper);
+}
+
+.module-divider .module-kicker {
+  margin-bottom: 12px;
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+}
+
+.module-divider h1 {
+  margin-bottom: 18px;
+  font-size: 52px;
+}
+
+.module-divider .module-summary {
+  max-width: 720px;
+  color: var(--ink-secondary);
+  font-size: 21px;
+  line-height: 1.55;
+}
+
+/* Lecture-style technical derivation pages */
+.lecture-slide {
+  padding: 30px 42px 30px;
+  font-size: 13.6px;
+  line-height: 1.34;
+}
+
+.lecture-slide h1 {
+  margin-bottom: 12px;
+  font-size: 29px;
+  line-height: 1.14;
+}
+
+.lecture-slide h2 {
+  margin: 9px 0 6px;
+  font-size: 16.5px;
+}
+
+.lecture-slide p,
+.lecture-slide ul,
+.lecture-slide ol {
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
+}
+
+.lecture-slide li + li {
+  margin-top: 0.08em;
+}
+
+.lecture-slide .doc-section {
+  margin-bottom: 6px;
+}
+
+.lecture-slide .doc-columns {
+  gap: 20px;
+}
+
+.lecture-slide table {
+  font-size: 12.2px;
+  line-height: 1.28;
+}
+
+.lecture-slide th {
+  padding: 5px 6px;
+}
+
+.lecture-slide td {
+  padding: 4px 6px;
+}
+
+.lecture-slide pre {
+  font-size: 11.2px;
+  line-height: 1.26;
+}
+
+.lecture-slide .definition,
+.lecture-slide .platform-rule,
+.lecture-slide .example,
+.lecture-slide .takeaway,
+.lecture-slide .scope-note {
+  margin-top: 9px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.lecture-slide .katex-display {
+  margin: 9px 0;
+  padding: 8px 10px;
+  color: #f4f7fb;
+  background: #0c1218;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--brand);
+  text-align: center;
+}
+
+.lecture-slide .katex-display .katex {
+  font-size: 1.03em;
+}
+
+.urdf-overview-slide table,
+.joint-detail-slide table,
+.a2d-chain-slide table,
+.a2d-full-structure-slide table,
+.urdf-code-slide table,
+.urdf-origin-slide table,
+.urdf-chain-slide table,
+.urdf-tf-half-slide table,
+.end-contract-slide table,
+.world-frame-slide table,
+.axis-color-slide table,
+.raw-end-mismatch-slide table,
+.tcp-end-slide table,
+.kinematics-slide table,
+.dh-code-slide table {
+  font-size: 11.8px;
+}
+
+.urdf-code-slide pre,
+.urdf-origin-slide pre,
+.urdf-chain-slide pre,
+.origin-concept-slide pre,
+.code-matrix-slide pre,
+.dh-code-slide pre,
+.tcp-end-slide pre {
+  font-size: 12px;
+}
+
+.chain-slide .chain-doc,
+.a2d-chain-slide .chain-doc {
+  margin: 12px 0 16px;
+}
+
+.chain-slide .chain-doc span,
+.a2d-chain-slide .chain-doc span {
+  padding: 6px 8px;
+  font-size: 10.5px;
+}
+
+.fk-algorithm-slide pre {
+  font-size: 11px;
+}
+
+.urdf-transform-example-slide table {
+  font-size: 12px;
+}
+
+.urdf-transform-example-slide pre {
+  font-size: 12px;
+}
+
+.urdf-transform-example-slide .takeaway {
+  margin-top: 10px;
+}
+
+.fk-tree-slide .tf-tree-full-image {
+  margin-top: 18px;
+}
+
+.fk-tree-slide .tf-tree-full-image img {
+  display: block;
+  width: 100%;
+  max-height: 340px;
+  object-fit: contain;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background: #0f1115;
+}
+
+.fk-tree-slide .takeaway {
+  margin-top: 14px;
+}
+
+.code-matrix-slide table {
+  font-size: 12px;
+}
+
+.dh-code-slide .takeaway {
+  margin-top: 8px;
+}
+
+.urdf-code-slide pre,
+.urdf-origin-slide pre,
+.urdf-chain-slide pre {
+  font-size: 10.8px;
+}
+
+.a2d-full-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.a2d-full-grid img {
+  width: 100%;
+  height: 340px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #080b0f;
+}
+
 /* Cover */
 .cover-business {
   background-color: var(--paper);
@@ -381,10 +603,86 @@
   height: 360px;
 }
 
+.h5-end-image {
+  height: 360px;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.end-contract-slide {
+  font-size: 13px;
+}
+
+.end-contract-slide h1 {
+  margin-bottom: 10px;
+  font-size: 28px;
+}
+
+.end-contract-slide h2 {
+  margin: 8px 0 5px;
+  font-size: 16px;
+}
+
+.end-contract-slide table {
+  font-size: 11.1px;
+  line-height: 1.2;
+}
+
+.end-contract-slide th,
+.end-contract-slide td {
+  padding: 4px 7px;
+}
+
+.world-image-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.world-image-grid img {
+  width: 100%;
+  height: 292px;
+  object-fit: contain;
+  object-position: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #080b0f;
+}
+
+.axis-color-image {
+  height: 336px;
+  object-fit: contain;
+}
+
 .action-state-image {
-  height: 120px;
+  height: 210px;
   margin-top: 6px;
-  object-fit: cover;
+  object-fit: contain;
+}
+
+.tcp-image {
+  height: 350px;
+  object-fit: contain;
+}
+
+.dwheel-frame-image {
+  height: 342px;
+  object-fit: contain;
+}
+
+.tf-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.tf-pair img {
+  width: 100%;
+  height: 336px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #080b0f;
 }
 
 .end-type-notes {
@@ -400,7 +698,7 @@
 }
 
 .end-types-slide .action-state-image {
-  height: 92px;
+  height: 214px;
 }
 
 .end-types-slide .takeaway {
@@ -416,30 +714,6 @@
 .frame-selection-slide .platform-rule {
   margin-top: 9px;
   padding: 7px 10px;
-}
-
-.production-slide .doc-columns {
-  gap: 20px;
-}
-
-.production-slide .platform-rule {
-  margin-top: 8px;
-  padding: 7px 10px;
-  font-size: 12px;
-}
-
-.production-slide table th,
-.production-slide table td {
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-
-.production-slide .wire-cards {
-  font-size: 13px;
-}
-
-.production-slide .wire-attrs {
-  margin-top: 5px;
 }
 
 .image-note {
