@@ -241,19 +241,21 @@
 - DH 适合讲“参数表 + 变换矩阵 + 连乘”。
 - A2D 这类数据更适合直接解析 URDF。
 
-### 第 19 页：从旋转和平移构建一段变换矩阵
+### 第 19 页：由当前关节值构造 Motion 变换
 
 页面内容：
 
-- 使用 URDF `origin xyz="0 0.03 0" rpy="0 0 1.5708"` 作为例子。
-- 说明 `rpy` 对应旋转矩阵 `R`，`xyz` 对应平移向量 `p`。
-- 展示绕 Z 轴旋转 90 度、沿 Y 轴平移 0.03m 后的 4×4 `T_parent_child`。
+- 区分来自 URDF 的固定安装变换 `T_origin` 与由当前关节值生成的 `T_motion(q)`。
+- 分别展示 revolute joint 绕局部 Z 轴旋转 90 度，以及 prismatic joint 沿局部 Y 轴移动 0.03m 时的 motion 矩阵。
+- 明确两个矩阵是两个独立的一自由度示例，不是在一个普通 joint 上同时旋转和平移。
+- 展示 `T_parent_child = T_origin @ T_motion`，并衔接 `T_base_child = T_base_parent @ T_parent_child`。
 
 讲解提示：
 
-- `T[:3, :3] = R`，表示朝向。
-- `T[:3, 3] = p`，表示 child frame 原点在 parent frame 里的位置。
-- 最后一行固定是 `[0, 0, 0, 1]`。
+- `origin` 描述零位时的固定安装关系；`type + axis + q` 才决定当前帧的运动。
+- revolute 的 motion 只包含绕 axis 的旋转；prismatic 的 motion 只包含沿 axis 的平移。
+- motion 的 axis 在 joint 局部坐标系中表达，因此矩阵顺序是 `T_origin @ T_motion(q)`。
+- 这一页的乘法顺序应与第 21 页 FK 伪代码保持一致。
 
 ### 第 20 页：FK Tree：从 base_link 一层一层走到 End
 

@@ -667,60 +667,63 @@ T_base_end = T1 @ T2 @ T3
 class: lecture-slide urdf-transform-example-slide
 ---
 
-<div class="doc-section">04 · URDF 单段变换</div>
+<div class="doc-section">04 · 可动关节的 Motion</div>
 
-# 从旋转和平移构建一段变换矩阵
+# 由当前关节值 q 构造 motion，再与 origin 相乘
 
 <div class="doc-columns code-wide">
 <div>
 
-```xml
-<!-- child frame 相对 parent frame -->
-<origin xyz="0 0.03 0"
-        rpy="0 0 1.5708"/>
+对同一个可动关节，要把两层变换分开：
+
+| 变换 | 来源 | 含义 |
+|---|---|---|
+| `T_origin` | URDF `origin` | 零位时的固定安装变换 |
+| `T_motion(q)` | `type + axis + q` | 当前帧的关节运动 |
+
+右侧是两个**独立的一自由度示例**：
+
+- revolute：绕局部 Z 轴旋转 `q = 90°`
+- prismatic：沿局部 Y 轴移动 `q = 0.03m`
+
+```python
+T_parent_child = T_origin @ T_motion
+T_base_child = T_base_parent @ T_parent_child
 ```
-
-这个例子表示：
-
-| 部分 | 含义 |
-|---|---|
-| `rpy="0 0 1.5708"` | 绕 Z 轴旋转 90 度 |
-| `xyz="0 0.03 0"` | 沿 Y 轴平移 0.03m |
-
-先把旋转写成 3×3 的 `R`，再把平移写到右侧的 `p`，最后补上固定的最后一行。
 
 </div>
 <div>
 
 ```python
-Rz_90 = np.array([
-    [0, -1, 0],
-    [1,  0, 0],
-    [0,  0, 1],
+# revolute: axis = [0, 0, 1], q = 90°
+T_motion_revolute = np.array([
+    [0, -1, 0, 0],
+    [1,  0, 0, 0],
+    [0,  0, 1, 0],
+    [0,  0, 0, 1],
 ])
 
-p = np.array([0, 0.03, 0])
-
-T_parent_child = np.array([
-    [0, -1, 0, 0.00],
-    [1,  0, 0, 0.03],
-    [0,  0, 1, 0.00],
-    [0,  0, 0, 1.00],
+# prismatic: axis = [0, 1, 0], q = 0.03m
+T_motion_prismatic = np.array([
+    [1, 0, 0, 0.00],
+    [0, 1, 0, 0.03],
+    [0, 0, 1, 0.00],
+    [0, 0, 0, 1.00],
 ])
 ```
 
-<div class="takeaway"><strong>记法：</strong><code>T[:3, :3] = R</code>，<code>T[:3, 3] = p</code>。旋转负责“朝向”，平移负责“原点在哪里”。</div>
+<div class="takeaway"><strong>关键：</strong>这里的旋转与平移是两种 joint 的 motion 示例，不是 <code>origin</code> 的 <code>rpy/xyz</code>，也不是在一个普通单自由度 joint 上同时发生。</div>
 
 </div>
 </div>
 
 <!--
-- 这里讲一下怎么从urdf里面的origin构造一个4*4变换矩阵
-- 例子里面rpy是0 0 1.5708, 也就是绕z轴转90度
-- xyz是0 0.03 0, 也就是沿着y轴移动0.03米
-- 先把旋转部分放到矩阵左上角3*3
-- 再把平移xyz放到矩阵右边这一列
-- 最后一行永远是0 0 0 1, 只是为了让旋转和平移可以放在一个矩阵里面一起相乘
+- 这里讲可动关节如何根据当前 q 构造 motion 变换，而不是从 origin 构造运动结果
+- revolute 例子：axis 是局部 Z 轴，当前 q 是 90 度，所以 motion 左上角是 Rz(90°)
+- prismatic 例子：axis 是局部 Y 轴，当前 q 是 0.03m，所以 motion 右侧平移列是 [0, 0.03, 0]
+- 两个矩阵是两个独立的一自由度关节示例，不是在一个普通 joint 上同时旋转和平移
+- 对每个 joint，先计算 T_parent_child = T_origin @ T_motion(q)
+- FK 再沿 base 到 end 的 chain 累乘：T_base_child = T_base_parent @ T_parent_child
 -->
 
 ---
