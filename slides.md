@@ -21,6 +21,10 @@ mdc: true
 从 A2D 的机器人结构文件、H5 中的关节数据和 End 结果出发，说明如何计算、理解和检查末端位姿。
 </div>
 
+<!--
+urdf是基础框架，end是目标数据，fk是方法，是实现从现有框架到目标数据的数学工具
+-->
+
 ---
 class: module-divider
 ---
@@ -67,6 +71,12 @@ link → joint → link → joint → link
 
 </div>
 </div>
+
+<!--
+需要单独说明什么是urdf（核心定义：机器人的“语言说明书”
+URDF (Unified Robot Description Format) 是ROS生态中描述机器人模型的标准XML文件格式。它将机器人的物理形态、连杆与关节关系转化为机器可解析的结构化数据。
+），什么是link（刚体），什么是joint（关节）
+-->
 
 ---
 class: lecture-slide urdf-code-slide
@@ -253,6 +263,10 @@ class: module-divider
 <div class="module-summary">
 End 回答“描述哪个末端点、相对哪个坐标系、在什么时刻、用什么格式表达”。
 </div>
+
+<!--
+需要说明end下的position和oritation的具体含义，特别是oritation”朝向“这个含义，必须讲解的清楚。
+-->
 
 ---
 class: compact-business end-contract-slide
@@ -718,12 +732,10 @@ T_motion_prismatic = np.array([
 </div>
 
 <!--
-- 这里讲可动关节如何根据当前 q 构造 motion 变换，而不是从 origin 构造运动结果
-- revolute 例子：axis 是局部 Z 轴，当前 q 是 90 度，所以 motion 左上角是 Rz(90°)
-- prismatic 例子：axis 是局部 Y 轴，当前 q 是 0.03m，所以 motion 右侧平移列是 [0, 0.03, 0]
-- 两个矩阵是两个独立的一自由度关节示例，不是在一个普通 joint 上同时旋转和平移
-- 对每个 joint，先计算 T_parent_child = T_origin @ T_motion(q)
-- FK 再沿 base 到 end 的 chain 累乘：T_base_child = T_base_parent @ T_parent_child
+- 讲一下一个可动关节的自由度变换其实包含两部分，也就是origin变换和motion变换
+- origin变换就是urdf中定义的当前link相比上一个link的固定变换，这个固定变换使用urdf中的origin中的xyz和rpy字段。这个变换是固定不变的
+- motion变换代表的就是这个关节本身的旋转或者平移，会随着关节角或者平移距离的变化而变化。可以使用urdf中定义的关节类型信息，以及h5里面的关节角信息或者平移量信息来计算。构造一个随着时间变化的变换矩阵
+- 对于每个非固定关节，都需要在origin的变换矩阵的基础上乘上motion的变换矩阵。具体如图所示
 -->
 
 ---
@@ -741,10 +753,8 @@ class: lecture-slide fk-tree-slide
 <div class="takeaway"><strong>计算方向：</strong>从 <code>base_link</code> 出发，按 parent → child 的路径一段一段乘到目标 end。最终矩阵表示的是 end 在 <code>base_link</code> 坐标系下的 pose。</div>
 
 <!--
-- 这页单独放tf tree, 主要是为了让大家看到fk不是随便找几个joint相乘
-- 必须先在tree里面找到从base_link到目标end的那条路径
-- 然后按照parent到child的顺序, 一层一层把每段变换矩阵乘上去
-- 乘到最后得到的T_base_end, 就是end在base_link坐标系下面的位置和朝向
+- 使用fk tree讲解，实际在人形机器人上，link和link之间通常是一个树型关系
+- 对于每个要被计算出来的end pose, 都需要按照这里的顺序从baselink开始一层一层进行矩阵乘法来乘上去。最终得到的就是在baselink坐标系下的end的 pose
 -->
 
 ---
