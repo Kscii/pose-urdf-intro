@@ -93,27 +93,30 @@ joints/state/arm/position[:, 5]
 - `lower/upper` 约束位置；revolute 的 effort/velocity 常用 N·m 与 rad/s，prismatic 常用 N 与 m/s；它们不直接进入基础 FK。
 - 简要对比 fixed、revolute、continuous、prismatic。
 
-### 第 8 页：URDF 定义“怎么动”，关节值决定“动了多少”
+### 第 8 页：XYZ 坐标轴与 RPY（欧拉角）
+
+- 保留红 X、绿 Y、蓝 Z 的可视化约定，强调每个 link/frame 都有自己的局部坐标轴。
+- `RPY = Roll–Pitch–Yaw`，是一种欧拉角表示：Roll/横滚绕固定 X，Pitch/俯仰绕固定 Y，Yaw/偏航绕固定 Z。
+- URDF 的 `origin rpy="r p y"` 使用弧度 `rad`，并对应 `left_arm_joint6` 的真实值 `-1.5708 0 3.1416`。
+- 不展开旋转矩阵推导、万向锁或其他欧拉角顺序。
+
+### 第 9 页：URDF 定义“怎么动”，关节值决定“动了多少”
 
 - `origin/type/axis` 来自静态 URDF。
 - `q6` 来自当前 H5/rosbag 帧。
 - 本段变换为 `T_origin_6 @ T_motion_6(q6)`。
 
-### 第 9 页：URDF 与 H5 数据会合
+### 第 10 页：URDF 与 H5 数据会合
 
-- 展示 `joints/state/arm/position[t, 5]` 的真实索引示例，以及原始通道名到 A2D `left_arm_joint6` 的构型映射。
+- 使用 H5 `arm/position` 关节值矩阵截图展示真实数据，并以 `joints/state/arm/position[t, 5]` 说明索引方式及其到 A2D `left_arm_joint6` 的构型映射。
 - URDF 定义“怎么动”，H5 定义“这一帧动了多少”。
 - 到此 FK 的两类输入已经齐备。
 
-### 第 10 页：取出 End Chain
+### 第 11 页：URDF Tree 与右手腕 Chain
 
-- 使用 `Joint_hand_l` 和 `gripper_center_joint` 真实片段。
-- `gripper_center` 没有 mesh，但可以作为语义末端 frame。
-
-### 第 11 页：URDF 与 TF
-
-- URDF 是静态模型；TF 是某一 timestamp 下的运行时 transform。
-- 交接：静态结构和当前关节值已经得到，下一模块直接进行 FK 计算。
+- 使用完整 A2D TF Tree 展示 link 之间从 `base_link` 向身体、头部、左右机械臂和夹爪分支的树状结构。
+- 使用 `Joint_hand_r` 的真实片段说明 `Link7_r → right_base_link` 的 parent/child 关系。
+- 以右手腕最后一个 link `right_base_link` 为目标，从树中取出 `base_link → … → Link7_r → right_base_link` 这条唯一 chain。
 
 ### 第 12 页：FK 模块分隔
 
@@ -162,6 +165,7 @@ joints/state/arm/position[:, 5]
 - chain 已确定起点 `base_link` 与终点 `gripper_center`，输入来自当前 `joint_values[t]`。
 - 此时只有几何结果；reference link/frame、timestamp 和 Raw/Verify/TCP 分类留到 End 模块显式组织。
 - 版式上左侧保留完整计算代码，右侧将“已确定的几何结果”和“仍待补齐的数据语义”分成两张卡；模块交接横跨页面底部。
+
 ### 第 20 页：End 模块分隔
 
 - 高亮 OUTPUT。
@@ -170,36 +174,31 @@ joints/state/arm/position[:, 5]
 ### 第 21 页：End Pose 数据契约
 
 - 固定讲解 `reference_link / reference_frame / timestamp / position / orientation`。
-- Quaternion、Rotation Matrix、RPY 表达同一个朝向。
+- Quaternion、Rotation Matrix、RPY 表达同一个朝向；RPY 在 URDF 模块已经解释，此处用于回顾三种表示的关系。
 - H5 orientation 使用 `xyzw`。
 
-### 第 22 页：XYZ 坐标轴颜色
-
-- 红 X、绿 Y、蓝 Z。
-- 屏幕方向不等于 frame 轴方向。
-
-### 第 23 页：base_link 与 world
+### 第 22 页：base_link 与 world
 
 - 手臂 FK 默认先得到相对 `base_link` 的 End Pose。
 - world 是外部参考系，需要额外的 `world→base_link` 来源。
 
-### 第 24 页：DWHEEL Raw End 反例
+### 第 23 页：DWHEEL Raw End 反例
 
 - 厂商 Raw End 可能不以统一 `base_link` 表达。
 - 数值比较前先对齐 frame、endpoint 和姿态约定。
 
-### 第 25 页：Action/State/Raw/Verify/TCP
+### 第 24 页：Action/State/Raw/Verify/TCP
 
 - Action/State 描述时间或数据语义，Raw/Verify 描述来源，TCP 描述 endpoint。
 - Verify End 已在上一模块由 URDF、joint values 和 FK 计算。
 
-### 第 26 页：TCP End
+### 第 25 页：TCP End
 
 - `T_base_tcp = T_base_reference @ T_reference_tcp`，其中 reference end 来自上一模块的 FK。
 - TCP 误差可能包含安装、几何和标定误差。
 - 收束：为 FK 几何结果补齐 link、frame、timestamp 和 endpoint 语义。
 
-### 第 27 页：完整逻辑链总结
+### 第 26 页：完整逻辑链总结
 
 - URDF 是基础框架。
 - 关节角是当前状态。
